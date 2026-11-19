@@ -15,7 +15,6 @@ import { C, usePalette } from '../band/control'
 
 const tasks = atom({ plugin: 'khangte-desk-mods', key: 'tasks' } as const, [])
 const tab = atom({ plugin: 'khangte-desk-mods', key: 'tab' } as const, '오늘')
-const name = atom({ plugin: 'khangte-desk-mods', key: 'name' } as const, '') // set with /todo-name; a shared copy carries no one's name
 const pomo = atom({ plugin: 'khangte-desk-mods', key: 'pomo' } as const, freshPomo(''))
 const minutes = atom({ plugin: 'khangte-desk-mods', key: 'minutes' } as const, DEFAULT_MINUTES)
 const tick = atom({ plugin: 'khangte-desk-mods', key: 'taskTick' } as const, 0)
@@ -93,22 +92,16 @@ async function setMinutes($: EngineInterface, m: Minutes) {
 }
 
 /** What is typed in a minutes field, kept here and not in the state: the pane redraws every second. */
-export const minuteDrafts: { focus?: string; rest?: string } = {}
+const drafts: { focus?: string; rest?: string } = {}
 
-/** One field's 적용 (its Enter) in ⚙ 모즈 설정: that length alone; a bad number changes nothing. */
-export async function applyMinute($: EngineInterface, k: 'focus' | 'rest', v: string) {
-  delete minuteDrafts[k]
+/** One field's 적용 (its Enter): that length alone; a bad number changes nothing. */
+async function applyMinute($: EngineInterface, k: 'focus' | 'rest', v: string) {
+  delete drafts[k]
   const n = Number(v.trim())
   if (!Number.isInteger(n) || n < 1 || n > 180) return $.ui.toast('1~180 사이의 분을 적어 주세요')
   const cur = await read($, minutes)
   await setMinutes($, { ...cur, [k]: n })
   $.ui.toast(`${k === 'focus' ? '집중' : '휴식'} 시간을 ${n}분으로 바꿨어요`)
-}
-
-/** The greeting's name: /todo-name and ⚙ 모즈 설정's field both come here. */
-export async function saveName($: EngineInterface, who: string) {
-  await update($, name, () => who)
-  await $.store.set('name', who)
 }
 
 async function openPane($: EngineInterface) {
@@ -140,13 +133,6 @@ export const register: Register = on => {
     return { text: `포모도로: 집중 ${m.focus}분 · 휴식 ${m.rest}분` }
   })
 
-  on('command.run', { command: 'todo-name' }, async ($, e) => {
-    const who = e.args.trim()
-    if (who === '') return { text: `지금 이름: ${await read($, name)} (바꾸려면 /todo-name 이름)` }
-    await saveName($, who)
-    return { text: `인사말 이름을 ${who}(으)로 바꿨어요.` }
-  })
-
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     await usePalette($)
     const { Box, Button, Text } = $.ui.resolve(e)
@@ -160,7 +146,6 @@ export const register: Register = on => {
 
     const list = await read($, tasks)
     const current = await read($, tab)
-    const who = await read($, name)
     const today = dayOf(await $.clock.now())
     const isTerminal = e.surface === 'terminal'
     // Desktop buttons stand taller than a line: rows that hold them get two lines.
@@ -208,6 +193,23 @@ export const register: Register = on => {
           <Button key="pomo-skip" onPress={() => setPomo($, (p, n, mm) => skip(p, n, mm))}>⏭ 건너뛰기</Button>
           <Button key="pomo-reset" onPress={() => resetPomo($)}>↺ 처음으로</Button>
         </Box>
+        {'Input' in r ? (
+          <Box key="pomo-minutes" flexDirection="row" columnGap={2} alignItems="center" flexWrap="wrap" justifyContent="center">
+            {(['focus', 'rest'] as const).map(k => (
+              <r.Input
+                key={`pomo-${k}`}
+                label={k === 'focus' ? '집중(분)' : '휴식(분)'}
+                placeholder="1~180"
+                submitLabel="적용"
+                value={drafts[k] ?? String(m[k])}
+                onInput={v => {
+                  drafts[k] = v
+                }}
+                onSubmit={v => void applyMinute($, k, v)}
+              />
+            ))}
+          </Box>
+        ) : null}
       </Box>
     )
 
@@ -252,7 +254,7 @@ export const register: Register = on => {
 
     return (
       <Box flexDirection="column" rowGap={gap} paddingX={1} paddingY={1}>
-        <Text size="title" weight="bold" color={TEXT}>{greeting(new Date(nowMs).getHours(), who)}</Text>
+        <Text size="title" weight="bold" color={TEXT}>{greeting(new Date(nowMs).getHours())}</Text>
         <Text color={ACCENT}>{`오늘 끝낼 일 ${todayLeft}개`}</Text>
         {divider('line-0')}
         <Text weight="bold" color={TEXT}>🍅 집중 타이머</Text>
@@ -311,8 +313,6 @@ export async function tasksSessionStart($: EngineInterface, e: any, next: (e: an
   const result = await next(e)
   const now = await $.clock.now()
   await save($, l => pruneDone(l, now))
-  const who = await $.store.get('name')
-  if (typeof who === 'string' && who.trim() !== '') await update($, name, () => who)
   await $.command.register({
     name: 'todo',
     description: '🗓 오늘 할 일: 할 일 추가 (비우면 패널 열기)',
@@ -326,6 +326,5 @@ export async function tasksSessionStart($: EngineInterface, e: any, next: (e: an
   await update($, pomo, p => (p.day === '' ? { ...freshPomo(today, savedMin ?? DEFAULT_MINUTES), done: doneToday } : rollDay(p, today)))
   await $.command.register({ name: 'pomodoro', description: '포모도로 집중·휴식 분 바꾸기', argumentHint: '25 5' })
   $.clock.every(1000, () => void pomoTick($))
-  await $.command.register({ name: 'todo-name', description: '🗓 오늘 할 일 인사말 이름 바꾸기', argumentHint: '이름' })
   return result
 }

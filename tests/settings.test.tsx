@@ -141,7 +141,7 @@ test('two windows: a switch here keeps the colour another window chose since thi
 })
 
 for (const surface of ['desktop', 'terminal'] as const) {
-  test(`⚙ fields: work hours and the greeting's name are set here, a bad time changes nothing (${surface})`, async ($, on) => {
+  test(`⚙ field: work hours are set here, a bad time changes nothing; no name or minute fields (${surface})`, async ($, on) => {
     const { mem, kept } = wire(on)
     const toasts: string[] = []
     on('ui.toast', (_: unknown, e: { text: string }) => (toasts.push(e.text), { value: undefined }))
@@ -152,13 +152,11 @@ for (const surface of ['desktop', 'terminal'] as const) {
     await ui.input({ key: 'hours-input', text: '8:30 17:30' })
     expect(kept.get('workhours')).toBe('08:30 17:30')
     expect(mem.get('hours')?.value).toEqual({ start: '08:30', end: '17:30' })
-    await ui.input({ key: 'name-input', text: '  홍길동 ' })
-    expect(kept.get('name')).toBe('홍길동')
-    expect(toasts).toEqual(['예: 09:00 18:30 (24시간제, 퇴근이 출근보다 늦게)', '출근 08:30 · 퇴근 17:30', '인사말 이름을 홍길동(으)로 바꿨어요'])
+    expect(toasts).toEqual(['예: 09:00 18:30 (24시간제, 퇴근이 출근보다 늦게)', '출근 08:30 · 퇴근 17:30'])
+    for (const key of ['name-input', 'pomo-focus', 'pomo-rest']) expect(await ui.find({ key })).toBeUndefined()
     await ui.unmount()
     ui = await $.ui.mount({ ...PANE, surface })
     expect((await ui.find({ key: 'hours-input' }))?.props.value).toBe('08:30 17:30')
-    expect((await ui.find({ key: 'name-input' }))?.props.value).toBe('홍길동')
     await ui.unmount()
   })
 }

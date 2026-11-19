@@ -45,7 +45,7 @@ declare module 'claude-code' {
       usage: Usage | null; sys: Sys | null; frame: number; hours: Hours; tick: number; settings: Settings; isShielded: boolean
       plan: Plan | null; effort: string; model: string; memo: string; quick: string[] | null; memoReady: boolean; memoBlink: number
       // 🗓 오늘 할 일
-      tasks: Task[]; tab: Tab; name: string; pomo: Pomo; minutes: Minutes; taskTick: number
+      tasks: Task[]; tab: Tab; pomo: Pomo; minutes: Minutes; taskTick: number
       // the spinner
       turn: Turn
     }

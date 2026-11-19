@@ -40,7 +40,7 @@ test('request list cleaning: trimmed, no blanks or repeats, at most 8', () => {
 })
 
 for (const surface of ['desktop', 'terminal'] as const) {
-  test(`🎛 Claude 도구: 🤖 모델 · 📝 다음 요청 메모; ⚡ 빠른 요청 is edited in ⚙ 모즈 설정 (${surface})`, async ($, on) => {
+  test(`🎛 Claude 도구: 🤖 모델 · 📝 다음 요청 메모; ⚡ 원터치 요청 버튼 is edited in ⚙ 모즈 설정 (${surface})`, async ($, on) => {
     // a list set earlier carries over until it is edited
     const { kept } = wire(on, { quick: ['/ponytail-audit'] })
     const control = await $.ui.mount({ ...PANE, surface })
@@ -49,7 +49,7 @@ for (const surface of ['desktop', 'terminal'] as const) {
     expect(rules).toHaveLength(1)
     const at = (s: string) => texts.findIndex(t => t.startsWith(s))
     expect(at('이번 작업')).toBe(-1) // it stays above the prompt only
-    expect([at('📊 사용량'), at('⚡ 빠른 요청')]).toEqual([-1, -1]) // the band shows usage; requests are set in ⚙
+    expect([at('📊 사용량'), at('⚡ 원터치 요청')]).toEqual([-1, -1]) // the band shows usage; requests are set in ⚙
     expect(texts).toContain('🎛 Claude 도구')
     const order = [at('🤖 모델'), at('Model'), rules[0]!, at('📝 다음 요청 메모')]
     expect(order.every(i => i >= 0)).toBe(true)

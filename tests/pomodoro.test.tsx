@@ -157,10 +157,7 @@ for (const surface of ['desktop', 'terminal'] as const) {
     const toasts: string[] = []
     on('ui.toast', (_: unknown, e: { text: string }) => (toasts.push(e.text), { value: undefined }))
     await $.session.start({ cwd: '/', surface, isInteractive: true })
-    const tasksPane = await $.ui.mount({ ...PANE, surface })
-    expect(await tasksPane.find({ key: 'pomo-focus' })).toBeUndefined() // set in ⚙ now
-    await tasksPane.unmount()
-    const ui = await $.ui.mount({ ...PANE, surface, requestId: 'mods-settings' })
+    const ui = await $.ui.mount({ ...PANE, surface })
     await ui.input({ key: 'pomo-focus', text: '40' }) // its own 적용: focus alone
     expect(kept.get('pomo-minutes')).toBe('40 5')
     await ui.input({ key: 'pomo-rest', text: '0' }) // out of range: nothing changes

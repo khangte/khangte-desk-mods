@@ -78,10 +78,8 @@ export const thinBar = (ratio: number, width: number, track: string, fill: strin
   `<rect x="0" y="2" width="${Math.round(width * Math.min(1, Math.max(0, ratio)))}" height="6" rx="3" fill="${fill}"/></svg>`
 
 /** The pane's greeting by the local hour: 아침 until noon, 오후 until 6pm, then 저녁. */
-export const greeting = (hour: number, who: string) => {
-  const part = hour >= 5 && hour < 12 ? '아침' : hour >= 12 && hour < 18 ? '오후' : '저녁'
-  return who ? `좋은 ${part}, ${who}님` : `좋은 ${part}이에요`
-}
+export const greeting = (hour: number) =>
+  hour >= 5 && hour < 12 ? '좋은 아침이에요' : hour >= 12 && hour < 18 ? '좋은 오후예요' : '좋은 저녁이에요'
 
 /** Pairs, for the two-up card grid. */
 export const pairs = <T,>(list: readonly T[]): T[][] =>

@@ -2,8 +2,8 @@ import { showPane } from '../panes'
 import { PANE as TASKS_PANE, TITLE as TASKS_TITLE } from '../tasks/register'
 // a plugin gets one hook per event: the other parts' session.start, tool.call and turn.complete run from here
 import { spinnerToolCall, spinnerTurnComplete } from '../spinner/register'
-import { applyMinute, minuteDrafts, saveName, tasksSessionStart } from '../tasks/register'
-import { DEFAULT_MINUTES, clock as pomoClock, freshPomo, remaining } from '../tasks/pomodoro'
+import { tasksSessionStart } from '../tasks/register'
+import { clock as pomoClock, freshPomo, remaining } from '../tasks/pomodoro'
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderChildren, SessionUsage } from 'claude-code'
 
@@ -19,10 +19,8 @@ const usage = atom({ plugin: 'khangte-desk-mods', key: 'usage' } as const, null)
 const sys = atom({ plugin: 'khangte-desk-mods', key: 'sys' } as const, null)
 // Owned by today-tasks (/todo); read here for the box gauge and the next-step chips.
 const todoTasks = atom({ plugin: 'khangte-desk-mods', key: 'tasks' } as const, [])
-// Also 🗓's: the timer the 할 일 row shows while it runs, and what ⚙ 모즈 설정's fields show.
+// Also 🗓's: the timer the 할 일 row shows while it runs.
 const pomo = atom({ plugin: 'khangte-desk-mods', key: 'pomo' } as const, freshPomo(''))
-const minutes = atom({ plugin: 'khangte-desk-mods', key: 'minutes' } as const, DEFAULT_MINUTES)
-const name = atom({ plugin: 'khangte-desk-mods', key: 'name' } as const, '')
 // The ready-made requests, edited in the control centre: one ⚡ button each. null: never set here.
 const quick = atom({ plugin: 'khangte-desk-mods', key: 'quick' } as const, null)
 const MAX_QUICK = 8
@@ -140,7 +138,6 @@ async function saveSettings($: EngineInterface, fn: (s: Settings) => Settings) {
 let memoDraft: string | null = null
 let quickDraft = ''
 let hoursDraft: string | null = null
-let nameDraft: string | null = null
 let typingIn: string | undefined // the field holding the keyboard, while one does
 
 /** The memo as it stands: the draft being typed, else the saved one. */
@@ -487,8 +484,6 @@ export const register: Register = on => {
     const cfg = normalize(await read($, settings))
     const nexts = await quickNow($)
     const wh: Hours = (await read($, hours)) ?? DEFAULT_HOURS
-    const m = (await read($, minutes)) ?? DEFAULT_MINUTES
-    const who = (await read($, name)) ?? ''
     const change = (fn: (s: Settings) => Settings) => saveSettings($, fn)
     const nameOf = (id: string) => BANDS.find(b => b.id === id)
     const switchOf = (id: string) => {
@@ -533,7 +528,7 @@ export const register: Register = on => {
           })}
         </Box>
         {divider('set-line-q')}
-        <Text weight="bold">⚡ 빠른 요청</Text>
+        <Text weight="bold">⚡ 원터치 요청 버튼</Text>
         <Text dimColor>여기 적은 요청이 입력창 위 ⚡ 단추가 돼요. 누르면 입력창에 채워지고, 보내는 건 직접 해야 돼요.</Text>
         {nexts.length === 0 ? (
           <Text dimColor>아직 없어요. 예: 이번 수정건 재검토해</Text>
@@ -582,41 +577,9 @@ export const register: Register = on => {
                 void saveHours($, h).then(() => $.ui.toast(`출근 ${h.start} · 퇴근 ${h.end}`))
               }}
             />,
-            divider('set-line-p'),
-            <Text key="pomo-title" weight="bold">🍅 집중·휴식 시간</Text>,
-            <Box key="pomo-minutes" flexDirection="row" columnGap={2} alignItems="center" flexWrap="wrap">
-              {(['focus', 'rest'] as const).map(k => (
-                <r.Input
-                  key={`pomo-${k}`}
-                  label={k === 'focus' ? '집중(분)' : '휴식(분)'}
-                  placeholder="1~180"
-                  submitLabel="적용"
-                  value={minuteDrafts[k] ?? String(m[k])}
-                  onInput={v => {
-                    minuteDrafts[k] = v
-                  }}
-                  onSubmit={v => void applyMinute($, k, v)}
-                />
-              ))}
-            </Box>,
-            divider('set-line-n'),
-            <Text key="name-title" weight="bold">👋 인사말 이름</Text>,
-            <r.Input
-              key="name-input"
-              placeholder="🗓 오늘 할 일의 인사말에 쓸 이름"
-              submitLabel="적용"
-              value={nameDraft ?? who}
-              onInput={v => {
-                nameDraft = v
-              }}
-              onSubmit={v => {
-                nameDraft = null
-                void saveName($, v.trim()).then(() => $.ui.toast(v.trim() === '' ? '인사말에서 이름을 뺐어요' : `인사말 이름을 ${v.trim()}(으)로 바꿨어요`))
-              }}
-            />,
           ]
         ) : (
-          <Text dimColor>근무 시간·집중 시간·이름은 /workhours · /pomodoro · /todo-name으로 바꿀 수 있어요.</Text>
+          <Text dimColor>근무 시간은 /workhours로 바꿀 수 있어요.</Text>
         )}
         {divider('set-line-0')}
         <Text weight="bold">🎨 색상</Text>
@@ -870,7 +833,7 @@ export const register: Register = on => {
       ) : null,
       chips: nextChips.length === 0 ? null : (
         <Box key="next" flexDirection="row" flexWrap="wrap" alignItems="center" columnGap={1} rowGap={isTerminal ? 0 : 1} backgroundColor={C.navy} paddingX={1}>
-          {tag('⚡', '빠른 요청')}
+          {tag('⚡', '원터치 요청')}
           {nextChips.map((c, i) => (
             <Button
               key={`go${i}`}

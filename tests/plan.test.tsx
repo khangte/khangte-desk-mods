@@ -62,7 +62,7 @@ for (const surface of ['desktop', 'terminal'] as const) {
     await $.prompt.submit({ text: '그 김에 이것도' }) // sent while Claude works: it joins the work, the bar stays
     expect((await look()).hasBand).toBe(true)
     await $.turn.complete({ turnId: 't1', reason: 'completed', answer: '' } as never) // the answer is in
-    await $.prompt.submit({ text: '/todo-name kang' }) // a slash command while idle starts no turn…
+    await $.prompt.submit({ text: '/mods-settings' }) // a slash command while idle starts no turn…
     await $.prompt.submit({ text: '고마워' }) // …so this is still the new request: hidden until a new checklist
     expect((await look()).hasBand).toBe(false)
   })

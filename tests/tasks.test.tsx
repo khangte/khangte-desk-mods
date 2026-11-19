@@ -79,7 +79,7 @@ for (const surface of ['desktop', 'terminal'] as const) {
     const pane = () => $.ui.mount({ ...PANE, surface }) // a fresh mount stands for the host's redraw
     let ui = await pane()
     const texts = (await ui.findAll({ type: 'Text' })).map(t => t.text)
-    expect(texts).toContain('좋은 아침이에요') // no name until /todo-name sets one
+    expect(texts).toContain('좋은 아침이에요')
     expect(texts).toContain('오늘 끝낼 일 4개')
     expect(texts).toContain('1/5 완료 · 20%') // today's progress, the to-do dog's old job
     expect((await ui.findAll({ type: 'Button' })).map(b => b.key).filter(k => k?.startsWith('tab-'))).toEqual(['tab-오늘', 'tab-예정', 'tab-완료'])
@@ -112,16 +112,12 @@ for (const surface of ['desktop', 'terminal'] as const) {
     expect(await ui.find({ key: 'done-b' })).toBeUndefined()
     await ui.unmount()
 
-    // /todo adds, saves and opens the pane; /todo-name changes the greeting
+    // /todo adds, saves and opens the pane
     const r = await $.command.run({ command: 'todo', args: '견적서 검토 15:00' })
     expect(r.text).toBe('추가했어요: 견적서 검토 · ⏰ 15:00 · #업무')
     expect((kept.get('tasks') as Task[]).at(-1)).toMatchObject({ title: '견적서 검토', due: '15:00', done: false })
     expect(opened.at(-1)).toBe('today-tasks')
     expect((await $.command.run({ command: 'todo', args: '#급함' })).text).toContain('할 일 이름이 없어요')
-    await $.command.run({ command: 'todo-name', args: '홍길동' })
-    ui = await pane()
-    expect((await ui.findAll({ type: 'Text' })).map(t => t.text)).toContain('좋은 아침, 홍길동님')
-    await ui.unmount()
   })
 }
 
@@ -149,10 +145,10 @@ test('done tasks older than 30 days are dropped; open ones stay however old', ()
 })
 
 test('greeting follows the hour: 아침 5-11, 오후 12-17, 저녁 otherwise', () => {
-  expect(greeting(9, '')).toBe('좋은 아침이에요')
-  expect(greeting(12, '지수')).toBe('좋은 오후, 지수님')
-  expect(greeting(18, '')).toBe('좋은 저녁이에요')
-  expect(greeting(2, '')).toBe('좋은 저녁이에요')
+  expect(greeting(9)).toBe('좋은 아침이에요')
+  expect(greeting(12)).toBe('좋은 오후예요')
+  expect(greeting(18)).toBe('좋은 저녁이에요')
+  expect(greeting(2)).toBe('좋은 저녁이에요')
 })
 
 test('two windows: a press here keeps what another window added since this one started', async ($, on) => {

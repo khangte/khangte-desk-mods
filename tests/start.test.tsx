@@ -13,5 +13,5 @@ test('session start registers every command of all three parts', async ($, on) =
   on('session.model', () => ({ value: 'claude-opus-5-5' }))
   on('process.run', () => ({ value: { exitCode: 0, stdout: '{}', stderr: '' } }))
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true } as never)
-  expect(names.sort()).toEqual(['control', 'memo', 'mods-settings', 'pomodoro', 'todo', 'todo-name', 'workhours'])
+  expect(names.sort()).toEqual(['control', 'memo', 'mods-settings', 'pomodoro', 'todo', 'workhours'])
 })
