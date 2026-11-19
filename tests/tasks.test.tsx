@@ -154,3 +154,16 @@ test('greeting follows the hour: 아침 5-11, 오후 12-17, 저녁 otherwise', (
   expect(greeting(18, '')).toBe('좋은 저녁이에요')
   expect(greeting(2, '')).toBe('좋은 저녁이에요')
 })
+
+test('two windows: a press here keeps what another window added since this one started', async ($, on) => {
+  const kept = wire(on, { tasks: SAMPLE })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true }) // this window reads the list once
+  const added: Task = { id: 'z', title: '다른 창에서 추가', tag: '업무', day: TODAY, done: false }
+  kept.set('tasks', [...SAMPLE, added]) // another window's /todo, written to the shared store
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: 'done-a' })
+  await ui.unmount()
+  const after = kept.get('tasks') as Task[]
+  expect(after.map(t => t.id)).toContain('z') // not overwritten by this window's stale copy
+  expect(after.find(t => t.id === 'a')?.done).toBe(true)
+})

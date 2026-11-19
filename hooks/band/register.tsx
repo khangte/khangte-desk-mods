@@ -115,10 +115,19 @@ async function quickNow($: EngineInterface) {
   return (await read($, quick)) ?? []
 }
 
+// Read from the store, not this window's copy: every open window shares it (see saveSettings).
 async function saveQuick($: EngineInterface, fn: (list: string[]) => string[]) {
-  const out = cleanQuick(fn(await quickNow($)))
-  await update($, quick, () => out)
+  const stored = await $.store.get('quick')
+  const out = cleanQuick(fn(Array.isArray(stored) ? cleanQuick(stored) : await quickNow($))) // never stored yet: this window's list
   await $.store.set('quick', out) // kept by the host across conversations
+  await update($, quick, () => out)
+}
+
+/** Changes the settings as the store holds them, so a window open since morning cannot undo another's change. */
+async function saveSettings($: EngineInterface, fn: (s: Settings) => Settings) {
+  const out = normalize(fn(normalize(await $.store.get(STORE_KEY))))
+  await $.store.set(STORE_KEY, out) // kept across conversations by the host
+  await update($, settings, () => out)
 }
 
 // What is being typed. A field's value is redrawn from these, never from a write made a keystroke ago:
@@ -525,11 +534,7 @@ export const register: Register = on => {
     await usePalette($)
     const { Box, Button, Text } = $.ui.resolve(e)
     const cfg = normalize(await read($, settings))
-    const change = async (fn: (s: Settings) => Settings) => {
-      let out = DEFAULT_SETTINGS
-      await update($, settings, s => (out = fn(normalize(s))))
-      await $.store.set(STORE_KEY, out) // kept across conversations by the host
-    }
+    const change = (fn: (s: Settings) => Settings) => saveSettings($, fn)
     const nameOf = (id: string) => BANDS.find(b => b.id === id)
     const switchOf = (id: string) => {
       const isOn = cfg.enabled[id] !== false

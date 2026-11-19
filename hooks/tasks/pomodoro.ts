@@ -50,7 +50,8 @@ export type PomoEvent = 'focus-done' | 'rest-done'
 export const advance = (p: Pomo, now: number, m: Minutes): { pomo: Pomo; events: PomoEvent[] } => {
   let pomo = p
   const events: PomoEvent[] = []
-  while (pomo.status === 'running' && now >= pomo.endsAt && events.length < 100) {
+  // phases are 1..180 minutes, so this ends; the cap only guards a corrupt value (a month of 1-minute phases is 43,200)
+  while (pomo.status === 'running' && now >= pomo.endsAt && events.length < 1_000_000) {
     const wasFocus = pomo.mode === 'focus'
     events.push(wasFocus ? 'focus-done' : 'rest-done')
     const next: Pomo = { ...pomo, mode: wasFocus ? 'rest' : 'focus', done: pomo.done + (wasFocus ? 1 : 0) }

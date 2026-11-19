@@ -123,3 +123,15 @@ for (const surface of ['desktop', 'terminal'] as const) {
     await ui.unmount()
   })
 }
+
+test('two windows: a switch here keeps the colour another window chose since this one started', async ($, on) => {
+  const { kept } = wire(on)
+  await $.ui.mount({ ...PANE, surface: 'desktop' }).then(ui => ui.unmount()) // this window has drawn its settings
+  kept.set('mods-settings', { ...DEFAULT_SETTINGS, scheme: 'light' }) // another window picked 밝게
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: 'sw-spinner' })
+  await ui.unmount()
+  const saved = kept.get('mods-settings') as { scheme: string; enabled: Record<string, boolean> }
+  expect(saved.scheme).toBe('light')
+  expect(saved.enabled.spinner).toBe(false)
+})

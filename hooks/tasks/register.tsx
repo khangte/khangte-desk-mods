@@ -25,9 +25,14 @@ const settings = atom({ plugin: 'khangte-dashboard-mods', key: 'settings' } as c
 export const PANE = 'today-tasks'
 export const TITLE = '🗓 오늘 할 일'
 
-async function save($: EngineInterface, list: Task[]) {
-  await update($, tasks, () => list)
+/**
+ * Changes the list as it stands in the store, not as this window last read it: every open window
+ * shares the store, and writing a stale copy would drop what another window added.
+ */
+async function save($: EngineInterface, fn: (list: Task[]) => Task[]) {
+  const list = fn(cleanTasks(await $.store.get('tasks')))
   await $.store.set('tasks', list) // kept by the host across conversations
+  await update($, tasks, () => list)
 }
 
 /** Writes the timer, and today's 🍅 count to the store so it outlasts the conversation. */
@@ -113,7 +118,7 @@ export const register: Register = on => {
     if ('error' in p) return { text: p.error }
     const list = await read($, tasks)
     const task: Task = { id: `${now}-${list.length}`, ...p, done: false }
-    await save($, [...list, task])
+    await save($, l => [...l, task])
     await update($, tab, () => tabOf(task, dayOf(now)))
     await openPane($)
     return { text: `추가했어요: ${task.title} · ${whenOf(task, dayOf(now))} · #${task.tag}` }
@@ -238,20 +243,14 @@ export const register: Register = on => {
             <Button
               key={`del-${t.id}`}
               plain
-              onPress={async () => {
-                const l = await read($, tasks)
-                await save($, l.filter(x => x.id !== t.id))
-              }}
+              onPress={() => save($, l => l.filter(x => x.id !== t.id))}
             >
               ✕
             </Button>
             <Button
               key={`done-${t.id}`}
               plain
-              onPress={async () => {
-                const l = await read($, tasks)
-                await save($, l.map(x => (x.id === t.id ? { ...x, done: !x.done } : x)))
-              }}
+              onPress={() => save($, l => l.map(x => (x.id === t.id ? { ...x, done: !x.done } : x)))}
             >
               {t.done ? '●' : '○'}
             </Button>
@@ -319,10 +318,8 @@ export const register: Register = on => {
 /** 🗓 오늘 할 일's session start. Run from the band's hook of the same event: a plugin gets one hook per event */
 export async function tasksSessionStart($: EngineInterface, e: any, next: (e: any) => any) {
   const result = await next(e)
-  const loaded = cleanTasks(await $.store.get('tasks'))
-  const saved = pruneDone(loaded, await $.clock.now())
-  if (saved.length < loaded.length) await save($, saved)
-  else await update($, tasks, () => saved)
+  const now = await $.clock.now()
+  await save($, l => pruneDone(l, now))
   const who = await $.store.get('name')
   if (typeof who === 'string' && who.trim() !== '') await update($, name, () => who)
   await $.command.register({
