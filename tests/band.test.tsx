@@ -9,7 +9,7 @@ const USAGE = {
   context: 14,
 }
 const band = (bodyColumns: number) => ({
-  plugin: 'khangte-dashboard-mods', component: 'AbovePrompt', requestId: 'above',
+  plugin: 'khangte-desk-mods', component: 'AbovePrompt', requestId: 'above',
   props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns, scroll: { offset: 0, bodyRows: 10 } },
 }) as const
 

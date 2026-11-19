@@ -13,11 +13,11 @@ const REPLY = [
 ].join('\n')
 
 const MESSAGE = {
-  plugin: 'khangte-dashboard-mods', component: 'AssistantMessage', requestId: 'm1',
+  plugin: 'khangte-desk-mods', component: 'AssistantMessage', requestId: 'm1',
   props: { text: REPLY, isFirstOfReply: true },
 } as const
 const BAND = {
-  plugin: 'khangte-dashboard-mods', component: 'AbovePrompt', requestId: 'above',
+  plugin: 'khangte-desk-mods', component: 'AbovePrompt', requestId: 'above',
   props: { hasSurvey: false, isWorking: false, maxRows: 20, bodyColumns: 120, scroll: { offset: 0, bodyRows: 20 } },
 } as const
 
@@ -71,13 +71,13 @@ for (const surface of ['desktop', 'terminal'] as const) {
 
     // the bar's button: label says on, pressing reveals
     const bar = await $.ui.mount({ ...BAND, surface })
-    expect((await bar.find({ key: 'toggle-shield' }))?.text).toBe('👁 보이기')
+    expect((await bar.find({ key: 'toggle-shield' }))?.text).toBe('🙈 모자이크 켜짐')
     await bar.press({ key: 'toggle-shield' })
     await bar.unmount()
     expect(await drawn()).toBe(REPLY) // shown as written
 
     const bar2 = await $.ui.mount({ ...BAND, surface })
-    expect((await bar2.find({ key: 'toggle-shield' }))?.text).toBe('🙈 가리기')
+    expect((await bar2.find({ key: 'toggle-shield' }))?.text).toBe('👁 모자이크 꺼짐')
     await bar2.press({ key: 'toggle-shield' })
     await bar2.unmount()
     expect(await drawn()).toContain('●●● 가림') // masked again
@@ -86,18 +86,15 @@ for (const surface of ['desktop', 'terminal'] as const) {
 }
 
 for (const surface of ['desktop', 'terminal'] as const) {
-  test(`the 가림 row is one line of text; its switch and the 📋 오늘의 작업 opener sit in the bottom row (${surface})`, async ($, on) => {
+  test(`모자이크 has no band row, only its switch in the bottom row; 🗓 opens directly (${surface})`, async ($, on) => {
     wire(on)
     const ran: string[] = []
     on('command.run', (_: unknown, e: { command: string }) => (ran.push(e.command), { text: '' }))
     const opened: string[] = []
     on('ui.open', (_: unknown, e: { id: string }) => (opened.push(e.id), { value: { isPlaced: true } }))
     const ui = await $.ui.mount({ ...BAND, surface })
-    const boxes = await ui.findAll({ type: 'Box' })
-    const shieldRow = boxes.find(b => b.key === 'shield')!
-    expect(shieldRow.props.minHeight).toBeUndefined() // no two-line row for a button any more
-    expect(JSON.stringify(shieldRow.children)).not.toContain('"Button"')
-    expect((await ui.findAll({ type: 'Text' })).map(t => t.text)).toContain('켜짐')
+    expect((await ui.findAll({ type: 'Box' })).some(b => b.key === 'shield' || b.key === 'slot-shield')).toBe(false)
+    expect((await ui.find({ key: 'toggle-shield' }))?.text).toBe('🙈 모자이크 켜짐') // the button says the state
     await ui.press({ key: 'open-tasks' })
     expect(opened).toEqual(['today-tasks']) // opens 🗓 오늘 할 일 directly
     expect(ran).toEqual([]) // no /todo run
@@ -110,7 +107,7 @@ for (const surface of ['desktop', 'terminal'] as const) {
     wire(on).set('sys', { value: { cpu: 10 }, version: 1 }) // the 컴퓨터 상태 row shows once something was read
     const ui = await $.ui.mount({ ...BAND, surface })
     const slots = (await ui.findAll({ type: 'Box' })).filter(b => b.key?.startsWith('slot-'))
-    expect(slots.length).toBeGreaterThanOrEqual(4) // 퇴근, 사용량, 컴퓨터 상태, 가림 at least
+    expect(slots.length).toBeGreaterThanOrEqual(3) // 퇴근, 사용량, 컴퓨터 상태 at least
     expect(slots.filter(s => s.key !== 'slot-chips').every(s => s.props.minHeight === undefined)).toBe(true)
     const svgs = await ui.findAll({ type: 'Svg' })
     expect(svgs.filter(s => s.props.alt !== ' ').every(s => Number(s.props.height) <= 18)).toBe(true) // no picture taller than a line

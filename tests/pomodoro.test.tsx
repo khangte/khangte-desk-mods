@@ -10,7 +10,7 @@ const DAY = '2026-11-06'
 const T0 = new Date(2026, 10, 6, 9, 0, 0).getTime()
 const M = DEFAULT_MINUTES
 const PANE = {
-  plugin: 'khangte-dashboard-mods', component: 'Pane', requestId: 'today-tasks',
+  plugin: 'khangte-desk-mods', component: 'Pane', requestId: 'today-tasks',
   props: { title: '오늘의 작업', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} },
 } as const
 
@@ -157,7 +157,10 @@ for (const surface of ['desktop', 'terminal'] as const) {
     const toasts: string[] = []
     on('ui.toast', (_: unknown, e: { text: string }) => (toasts.push(e.text), { value: undefined }))
     await $.session.start({ cwd: '/', surface, isInteractive: true })
-    const ui = await $.ui.mount({ ...PANE, surface })
+    const tasksPane = await $.ui.mount({ ...PANE, surface })
+    expect(await tasksPane.find({ key: 'pomo-focus' })).toBeUndefined() // set in ⚙ now
+    await tasksPane.unmount()
+    const ui = await $.ui.mount({ ...PANE, surface, requestId: 'mods-settings' })
     await ui.input({ key: 'pomo-focus', text: '40' }) // its own 적용: focus alone
     expect(kept.get('pomo-minutes')).toBe('40 5')
     await ui.input({ key: 'pomo-rest', text: '0' }) // out of range: nothing changes

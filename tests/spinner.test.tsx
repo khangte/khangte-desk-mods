@@ -3,7 +3,7 @@ import { expect, mock, test } from 'claude-code/testing'
 import { PHRASES, line, phraseAt, pomoSuffix } from '../hooks/spinner/register'
 
 const SPINNER = {
-  plugin: 'khangte-dashboard-mods', component: 'Spinner', requestId: 's1',
+  plugin: 'khangte-desk-mods', component: 'Spinner', requestId: 's1',
   props: { word: 'Sauteing', message: null, suffix: '…', mode: 'thinking' },
 } as const
 

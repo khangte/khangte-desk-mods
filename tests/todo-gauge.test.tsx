@@ -5,7 +5,7 @@ import { boxGaugeSvg, cellWidth, todayTodo } from '../hooks/band/register'
 const NOW = new Date(2026, 10, 6, 14, 0, 0).getTime() // Fri 2026-11-06 14:00, local: mid-workday
 const TODAY = '2026-11-06'
 const band = (bodyColumns: number) => ({
-  plugin: 'khangte-dashboard-mods', component: 'AbovePrompt', requestId: 'above',
+  plugin: 'khangte-desk-mods', component: 'AbovePrompt', requestId: 'above',
   props: { hasSurvey: false, isWorking: false, maxRows: 20, bodyColumns, scroll: { offset: 0, bodyRows: 20 } },
 }) as const
 // the /todo list as today-tasks keeps it
@@ -84,5 +84,27 @@ for (const surface of ['desktop', 'terminal'] as const) {
     ui = await $.ui.mount({ ...band(120), surface })
     expect((await ui.findAll({ type: 'Box' })).some(b => b.key === 'todo')).toBe(false)
     await ui.unmount()
+  })
+}
+
+for (const surface of ['desktop', 'terminal'] as const) {
+  test(`a running or paused 🍅 shows its time at the 할 일 row's end, even with no tasks (${surface})`, async ($, on) => {
+    let tasks: unknown = TASKS
+    let pomo: unknown = { mode: 'focus', status: 'running', endsAt: NOW + 12 * 60_000 + 34_000, leftMs: 0, done: 0, day: TODAY }
+    on('clock.now', () => ({ value: NOW }))
+    on('state.get', (_, e) => ({ value: { value: e.key === 'tasks' ? tasks : e.key === 'pomo' ? pomo : undefined, version: 1 } }))
+    const texts = async () => {
+      const ui = await $.ui.mount({ ...band(120), surface })
+      const all = (await ui.findAll({ type: 'Text' })).map(t => t.text)
+      await ui.unmount()
+      return all
+    }
+    expect(await texts()).toContain('· 🍅 12:34')
+    pomo = { mode: 'rest', status: 'paused', endsAt: 0, leftMs: 4 * 60_000, done: 1, day: TODAY }
+    expect(await texts()).toContain('· ☕ 04:00 ⏸')
+    tasks = []
+    expect((await texts()).some(t => t.startsWith('· ☕'))).toBe(true) // the row stays for the timer alone
+    pomo = { mode: 'focus', status: 'idle', endsAt: 0, leftMs: 25 * 60_000, done: 1, day: TODAY }
+    expect((await texts()).some(t => t.includes('오늘 할 일'))).toBe(false) // no tasks, no timer: no row
   })
 }

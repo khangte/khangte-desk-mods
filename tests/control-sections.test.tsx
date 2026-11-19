@@ -3,11 +3,12 @@ import { expect, test } from 'claude-code/testing'
 import { cleanQuick } from '../hooks/band/register'
 
 const PANE = {
-  plugin: 'khangte-dashboard-mods', component: 'Pane', requestId: 'control-center',
+  plugin: 'khangte-desk-mods', component: 'Pane', requestId: 'control-center',
   props: { title: '🎛 제어센터', isFocused: true, bodyColumns: 50, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} },
 } as const
+const SETTINGS = { ...PANE, requestId: 'mods-settings', props: { ...PANE.props, title: '⚙ 모즈 설정' } } as const
 const BAND = {
-  plugin: 'khangte-dashboard-mods', component: 'AbovePrompt', requestId: 'above',
+  plugin: 'khangte-desk-mods', component: 'AbovePrompt', requestId: 'above',
   props: { hasSurvey: false, isWorking: false, maxRows: 20, bodyColumns: 120, scroll: { offset: 0, bodyRows: 20 } },
 } as const
 
@@ -39,25 +40,30 @@ test('request list cleaning: trimmed, no blanks or repeats, at most 8', () => {
 })
 
 for (const surface of ['desktop', 'terminal'] as const) {
-  test(`🎛 Claude 도구: 📊 사용량 · 🤖 모델 · ⚡ 빠른 요청 · 📝 다음 요청 메모, set off by rules (${surface})`, async ($, on) => {
-    // a list set earlier in 오늘의 작업 carries over until it is edited here
+  test(`🎛 Claude 도구: 🤖 모델 · 📝 다음 요청 메모; ⚡ 빠른 요청 is edited in ⚙ 모즈 설정 (${surface})`, async ($, on) => {
+    // a list set earlier carries over until it is edited
     const { kept } = wire(on, { quick: ['/ponytail-audit'] })
-    const pane = () => $.ui.mount({ ...PANE, surface })
-
-    let ui = await pane()
-    const texts = (await ui.findAll({ type: 'Text' })).map(t => t.text)
+    const control = await $.ui.mount({ ...PANE, surface })
+    const texts = (await control.findAll({ type: 'Text' })).map(t => t.text)
     const rules = texts.map((t, i) => (/^─{10,}$/.test(t) ? i : -1)).filter(i => i >= 0)
-    expect(rules).toHaveLength(3)
+    expect(rules).toHaveLength(1)
     const at = (s: string) => texts.findIndex(t => t.startsWith(s))
     expect(at('이번 작업')).toBe(-1) // it stays above the prompt only
+    expect([at('📊 사용량'), at('⚡ 빠른 요청')]).toEqual([-1, -1]) // the band shows usage; requests are set in ⚙
     expect(texts).toContain('🎛 Claude 도구')
-    expect(texts).toContain('여기 적은 요청이 입력창 위 ⚡ 단추가 돼요. 누르면 입력창에 채워지고, 보내는 건 직접 해야 돼요.')
-    expect((await ui.find({ key: 'quick-add' }))?.props.placeholder).toBe('새 요청을 적고 Enter (예: 이번 수정건 재검토해)')
-    const order = [at('📊 사용량'), at('컨텍스트'), rules[0]!, at('🤖 모델'), at('Model'), rules[1]!, at('⚡ 빠른 요청'), rules[2]!, at('📝 다음 요청 메모')]
+    const order = [at('🤖 모델'), at('Model'), rules[0]!, at('📝 다음 요청 메모')]
     expect(order.every(i => i >= 0)).toBe(true)
-    expect([...order].sort((x, y) => x - y)).toEqual(order) // 📊 사용량 | 🤖 모델 | ⚡ 빠른 요청 | 📝 다음 요청 메모
-    expect(texts).toContain('1. /ponytail-audit')
-    expect(await ui.find({ key: 'memo-input' })).toBeDefined()
+    expect([...order].sort((x, y) => x - y)).toEqual(order)
+    expect(await control.find({ key: 'memo-input' })).toBeDefined()
+    expect(await control.find({ key: 'quick-add' })).toBeUndefined()
+    await control.unmount()
+
+    const pane = () => $.ui.mount({ ...SETTINGS, surface })
+    let ui = await pane()
+    const set = (await ui.findAll({ type: 'Text' })).map(t => t.text)
+    expect(set).toContain('여기 적은 요청이 입력창 위 ⚡ 단추가 돼요. 누르면 입력창에 채워지고, 보내는 건 직접 해야 돼요.')
+    expect((await ui.find({ key: 'quick-add' }))?.props.placeholder).toBe('새 요청을 적고 Enter (예: 이번 수정건 재검토해)')
+    expect(set).toContain('1. /ponytail-audit')
 
     // editing here takes the list over and keeps it in this mod's store
     await ui.input({ key: 'quick-add', text: '  방금 고친 것 검토해 줘  ' })

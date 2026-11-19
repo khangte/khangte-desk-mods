@@ -40,7 +40,7 @@ export type Turn = { sec: number; tools: number; base: number }
 
 declare module 'claude-code' {
   interface PluginState {
-    'khangte-dashboard-mods': {
+    'khangte-desk-mods': {
       // the band and its panes
       usage: Usage | null; sys: Sys | null; frame: number; hours: Hours; tick: number; settings: Settings; isShielded: boolean
       plan: Plan | null; effort: string; model: string; memo: string; quick: string[] | null; memoReady: boolean; memoBlink: number

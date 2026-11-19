@@ -2,7 +2,8 @@ import { showPane } from '../panes'
 import { PANE as TASKS_PANE, TITLE as TASKS_TITLE } from '../tasks/register'
 // a plugin gets one hook per event: the other parts' session.start, tool.call and turn.complete run from here
 import { spinnerToolCall, spinnerTurnComplete } from '../spinner/register'
-import { tasksSessionStart } from '../tasks/register'
+import { applyMinute, minuteDrafts, saveName, tasksSessionStart } from '../tasks/register'
+import { DEFAULT_MINUTES, clock as pomoClock, freshPomo, remaining } from '../tasks/pomodoro'
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderChildren, SessionUsage } from 'claude-code'
 
@@ -11,33 +12,37 @@ import { dayOf, listFor, thinBar, todayProgress } from '../tasks/tasks'
 
 import { BANDS, DEFAULT_SETTINGS, FEATURES, normalize, shift, toggle, visible } from './layout'
 import { DEFAULT_HOURS, leaveView, parseHours } from './leave'
-import { C, EFFORTS, MODELS, planAfter, planView, ringSvg, ringText, usePalette } from './control'
+import { C, EFFORTS, MODELS, planAfter, planView, usePalette } from './control'
 import { maskText } from './shield'
 
-const usage = atom({ plugin: 'khangte-dashboard-mods', key: 'usage' } as const, null)
-const sys = atom({ plugin: 'khangte-dashboard-mods', key: 'sys' } as const, null)
+const usage = atom({ plugin: 'khangte-desk-mods', key: 'usage' } as const, null)
+const sys = atom({ plugin: 'khangte-desk-mods', key: 'sys' } as const, null)
 // Owned by today-tasks (/todo); read here for the box gauge and the next-step chips.
-const todoTasks = atom({ plugin: 'khangte-dashboard-mods', key: 'tasks' } as const, [])
+const todoTasks = atom({ plugin: 'khangte-desk-mods', key: 'tasks' } as const, [])
+// Also 🗓's: the timer the 할 일 row shows while it runs, and what ⚙ 모즈 설정's fields show.
+const pomo = atom({ plugin: 'khangte-desk-mods', key: 'pomo' } as const, freshPomo(''))
+const minutes = atom({ plugin: 'khangte-desk-mods', key: 'minutes' } as const, DEFAULT_MINUTES)
+const name = atom({ plugin: 'khangte-desk-mods', key: 'name' } as const, '')
 // The ready-made requests, edited in the control centre: one ⚡ button each. null: never set here.
-const quick = atom({ plugin: 'khangte-dashboard-mods', key: 'quick' } as const, null)
+const quick = atom({ plugin: 'khangte-desk-mods', key: 'quick' } as const, null)
 const MAX_QUICK = 8
-const frame = atom({ plugin: 'khangte-dashboard-mods', key: 'frame' } as const, 0)
-const hours = atom({ plugin: 'khangte-dashboard-mods', key: 'hours' } as const, DEFAULT_HOURS)
-const tick = atom({ plugin: 'khangte-dashboard-mods', key: 'tick' } as const, 0)
-const settings = atom({ plugin: 'khangte-dashboard-mods', key: 'settings' } as const, DEFAULT_SETTINGS)
-const isShielded = atom({ plugin: 'khangte-dashboard-mods', key: 'isShielded' } as const, true) // starts on, every session
+const frame = atom({ plugin: 'khangte-desk-mods', key: 'frame' } as const, 0)
+const hours = atom({ plugin: 'khangte-desk-mods', key: 'hours' } as const, DEFAULT_HOURS)
+const tick = atom({ plugin: 'khangte-desk-mods', key: 'tick' } as const, 0)
+const settings = atom({ plugin: 'khangte-desk-mods', key: 'settings' } as const, DEFAULT_SETTINGS)
+const isShielded = atom({ plugin: 'khangte-desk-mods', key: 'isShielded' } as const, true) // starts on, every session
 const PANE = 'mods-settings'
 const SCHEMES = [
   { id: 'dark', label: '어둡게' },
   { id: 'light', label: '밝게' },
 ] as const
 const STORE_KEY = 'mods-settings'
-const plan = atom({ plugin: 'khangte-dashboard-mods', key: 'plan' } as const, null)
-const effort = atom({ plugin: 'khangte-dashboard-mods', key: 'effort' } as const, '')
-const model = atom({ plugin: 'khangte-dashboard-mods', key: 'model' } as const, '')
-const memo = atom({ plugin: 'khangte-dashboard-mods', key: 'memo' } as const, '')
-const memoReady = atom({ plugin: 'khangte-dashboard-mods', key: 'memoReady' } as const, false)
-const memoBlink = atom({ plugin: 'khangte-dashboard-mods', key: 'memoBlink' } as const, 0)
+const plan = atom({ plugin: 'khangte-desk-mods', key: 'plan' } as const, null)
+const effort = atom({ plugin: 'khangte-desk-mods', key: 'effort' } as const, '')
+const model = atom({ plugin: 'khangte-desk-mods', key: 'model' } as const, '')
+const memo = atom({ plugin: 'khangte-desk-mods', key: 'memo' } as const, '')
+const memoReady = atom({ plugin: 'khangte-desk-mods', key: 'memoReady' } as const, false)
+const memoBlink = atom({ plugin: 'khangte-desk-mods', key: 'memoBlink' } as const, 0)
 const MEMO = 'next-memo'
 const MEMO_TITLE = '📝 다음 요청 메모'
 const CONTROL = 'control-center'
@@ -134,6 +139,8 @@ async function saveSettings($: EngineInterface, fn: (s: Settings) => Settings) {
 // writing the state on every key redrew the pane mid-typing and dropped letters.
 let memoDraft: string | null = null
 let quickDraft = ''
+let hoursDraft: string | null = null
+let nameDraft: string | null = null
 let typingIn: string | undefined // the field holding the keyboard, while one does
 
 /** The memo as it stands: the draft being typed, else the saved one. */
@@ -159,6 +166,12 @@ async function fillMemo($: EngineInterface) {
   }
   await saveMemo($, '')
   await update($, memoReady, () => false)
+}
+
+/** /workhours and ⚙ 모즈 설정's field both come here. */
+async function saveHours($: EngineInterface, h: Hours) {
+  await $.store.set('workhours', `${h.start} ${h.end}`) // kept across sessions by the host
+  await update($, hours, () => h)
 }
 
 async function refresh($: EngineInterface) {
@@ -358,7 +371,7 @@ export const register: Register = on => {
   on('ui.focus', { component: 'Pane', requestId: CONTROL }, async ($, e, next) => {
     const result = await next(e)
     const was = typingIn
-    typingIn = e.element === 'memo-input' || e.element === 'quick-add' ? e.element : undefined
+    typingIn = e.element === 'memo-input' ? e.element : undefined
     if (was === 'memo-input' && typingIn !== 'memo-input' && memoDraft !== null) await saveMemo($, memoDraft)
     return result
   })
@@ -379,16 +392,11 @@ export const register: Register = on => {
     const { Box, Button, Text } = r
     const cfg = normalize(await read($, settings))
     if (cfg.enabled.control === false) return <Text dimColor>Claude 도구가 ⚙ 모즈 설정에서 꺼져 있어요.</Text>
-    const u = (await read($, usage)) ?? {}
-    const pv = planView(await read($, plan))
     const level = await read($, effort)
     const current = await read($, model)
-    const now = await $.clock.now()
     const isTerminal = e.surface === 'terminal'
-    const Svg = !isTerminal && 'Svg' in r ? r.Svg : undefined
     const line = isTerminal ? {} : { minHeight: 2 }
     const gap = isTerminal ? 0 : 1
-    const nexts = await quickNow($)
     const note = await memoText($)
     const isReady = (await read($, memoReady)) && note.trim() !== ''
     const isLit = isReady && (await read($, memoBlink)) === 1
@@ -397,12 +405,6 @@ export const register: Register = on => {
     const divider = (key: string) => (
       <Text key={key} color={C.pale} wrap="truncate">{'─'.repeat(Math.max(10, e.props.bodyColumns - 2))}</Text>
     )
-    const rings = [
-      { key: 'context', label: '컨텍스트', pct: u.context, sub: '' },
-      { key: 'session', label: '5시간 한도', pct: u.session, sub: `↻${left(u.sessionReset, now)}` },
-      { key: 'week', label: '주간 한도', pct: u.week, sub: `↻${left(u.weekReset, now)}` },
-    ]
-    const barWidth = Math.max(80, Math.min(320, (e.props.bodyColumns - 14) * PX_PER_CELL))
     // A press runs /effort or /model as typing it would, so the session's own setting changes and nothing can drift apart.
     const setEffort = async (lv: string) => {
       await update($, effort, () => lv)
@@ -417,22 +419,6 @@ export const register: Register = on => {
       <Box flexDirection="column" rowGap={gap} paddingX={1} paddingY={1}>
         <Text size="heading" weight="bold" color={C.deep}>{CONTROL_TITLE}</Text>
 
-        <Text weight="bold" color={C.deep}>📊 사용량</Text>
-        <Box flexDirection="row" justifyContent="space-around" alignItems="flex-start" flexWrap="wrap" columnGap={2}>
-          {rings.map(g => (
-            <Box key={`ring-${g.key}`} flexDirection="column" alignItems="center">
-              {Svg ? (
-                <Svg source={ringSvg(g.pct)} alt={`${g.label} ${g.pct === undefined ? '–' : Math.round(g.pct)}%`} width={72} height={72} />
-              ) : (
-                <Text color={C.deep} weight="bold">{ringText(g.pct)}</Text>
-              )}
-              <Text color={C.deep} size="footnote" weight="bold">{g.label}</Text>
-              <Text color={C.mid} size="caption">{g.sub || ' '}</Text>
-            </Box>
-          ))}
-        </Box>
-
-        {divider('cc-line-2')}
         <Box flexDirection="column" rowGap={gap}>
           <Text weight="bold" color={C.deep}>🤖 모델</Text>
           <Box {...line} flexDirection="row" alignItems="center" columnGap={1} flexWrap="wrap">
@@ -453,43 +439,7 @@ export const register: Register = on => {
           </Box>
         </Box>
 
-        {divider('cc-line-3')}
-        <Box key="quick" flexDirection="column" rowGap={gap}>
-          <Text weight="bold" color={C.deep}>⚡ 빠른 요청</Text>
-          <Text size="footnote" color={C.mid}>여기 적은 요청이 입력창 위 ⚡ 단추가 돼요. 누르면 입력창에 채워지고, 보내는 건 직접 해야 돼요.</Text>
-          {nexts.length === 0 ? (
-            <Text size="footnote" color={C.mid}>아직 없어요. 예: 이번 수정건 재검토해</Text>
-          ) : (
-            <Box flexDirection="column">
-              {nexts.map((q, i) => (
-                <Box key={`quick-${i}`} {...line} flexDirection="row" alignItems="center" justifyContent="space-between" columnGap={1}>
-                  <Text color={C.deep} wrap="truncate">{`${i + 1}. ${q}`}</Text>
-                  <Box flexDirection="row" columnGap={1} flexShrink={0}>
-                    <Button key={`quick-up-${i}`} onPress={() => saveQuick($, l => (i === 0 ? l : [...l.slice(0, i - 1), l[i]!, l[i - 1]!, ...l.slice(i + 1)]))}>▲</Button>
-                    <Button key={`quick-del-${i}`} onPress={() => saveQuick($, l => l.filter((_, k) => k !== i))}>✕</Button>
-                  </Box>
-                </Box>
-              ))}
-            </Box>
-          )}
-          {'Input' in r && nexts.length < MAX_QUICK ? (
-            <r.Input
-              key="quick-add"
-              placeholder="새 요청을 적고 Enter (예: 이번 수정건 재검토해)"
-              submitLabel="추가"
-              value={quickDraft}
-              onInput={v => {
-                quickDraft = v // kept here, not in the state: no redraw while typing
-              }}
-              onSubmit={v => {
-                quickDraft = ''
-                void saveQuick($, l => [...l, v])
-              }}
-            />
-          ) : null}
-        </Box>
-
-        {divider('cc-line-4')}
+        {divider('cc-line-2')}
         {(
           <Box key="memo" flexDirection="column" rowGap={gap}>
             <Text weight="bold" color={C.deep}>{MEMO_TITLE}</Text>
@@ -532,8 +482,13 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     await usePalette($)
-    const { Box, Button, Text } = $.ui.resolve(e)
+    const r = $.ui.resolve(e)
+    const { Box, Button, Text } = r
     const cfg = normalize(await read($, settings))
+    const nexts = await quickNow($)
+    const wh: Hours = (await read($, hours)) ?? DEFAULT_HOURS
+    const m = (await read($, minutes)) ?? DEFAULT_MINUTES
+    const who = (await read($, name)) ?? ''
     const change = (fn: (s: Settings) => Settings) => saveSettings($, fn)
     const nameOf = (id: string) => BANDS.find(b => b.id === id)
     const switchOf = (id: string) => {
@@ -577,6 +532,92 @@ export const register: Register = on => {
             ])
           })}
         </Box>
+        {divider('set-line-q')}
+        <Text weight="bold">⚡ 빠른 요청</Text>
+        <Text dimColor>여기 적은 요청이 입력창 위 ⚡ 단추가 돼요. 누르면 입력창에 채워지고, 보내는 건 직접 해야 돼요.</Text>
+        {nexts.length === 0 ? (
+          <Text dimColor>아직 없어요. 예: 이번 수정건 재검토해</Text>
+        ) : (
+          <Box flexDirection="column">
+            {nexts.map((q, i) =>
+              item(`quick-${i}`, `${i + 1}. ${q}`, true, [
+                <Button key={`quick-up-${i}`} onPress={() => saveQuick($, l => (i === 0 ? l : [...l.slice(0, i - 1), l[i]!, l[i - 1]!, ...l.slice(i + 1)]))}>▲</Button>,
+                <Button key={`quick-del-${i}`} onPress={() => saveQuick($, l => l.filter((_, k) => k !== i))}>✕</Button>,
+              ]),
+            )}
+          </Box>
+        )}
+        {'Input' in r && nexts.length < MAX_QUICK ? (
+          <r.Input
+            key="quick-add"
+            placeholder="새 요청을 적고 Enter (예: 이번 수정건 재검토해)"
+            submitLabel="추가"
+            value={quickDraft}
+            onInput={v => {
+              quickDraft = v // kept here, not in the state: no redraw while typing
+            }}
+            onSubmit={v => {
+              quickDraft = ''
+              void saveQuick($, l => [...l, v])
+            }}
+          />
+        ) : null}
+        {'Input' in r ? (
+          [
+            divider('set-line-h'),
+            <Text key="hours-title" weight="bold">⏰ 근무 시간</Text>,
+            <r.Input
+              key="hours-input"
+              label="출근 퇴근"
+              placeholder="09:00 18:00"
+              submitLabel="적용"
+              value={hoursDraft ?? `${wh.start} ${wh.end}`}
+              onInput={v => {
+                hoursDraft = v
+              }}
+              onSubmit={v => {
+                hoursDraft = null
+                const h = parseHours(v)
+                if (!h) return $.ui.toast('예: 09:00 18:30 (24시간제, 퇴근이 출근보다 늦게)')
+                void saveHours($, h).then(() => $.ui.toast(`출근 ${h.start} · 퇴근 ${h.end}`))
+              }}
+            />,
+            divider('set-line-p'),
+            <Text key="pomo-title" weight="bold">🍅 집중·휴식 시간</Text>,
+            <Box key="pomo-minutes" flexDirection="row" columnGap={2} alignItems="center" flexWrap="wrap">
+              {(['focus', 'rest'] as const).map(k => (
+                <r.Input
+                  key={`pomo-${k}`}
+                  label={k === 'focus' ? '집중(분)' : '휴식(분)'}
+                  placeholder="1~180"
+                  submitLabel="적용"
+                  value={minuteDrafts[k] ?? String(m[k])}
+                  onInput={v => {
+                    minuteDrafts[k] = v
+                  }}
+                  onSubmit={v => void applyMinute($, k, v)}
+                />
+              ))}
+            </Box>,
+            divider('set-line-n'),
+            <Text key="name-title" weight="bold">👋 인사말 이름</Text>,
+            <r.Input
+              key="name-input"
+              placeholder="🗓 오늘 할 일의 인사말에 쓸 이름"
+              submitLabel="적용"
+              value={nameDraft ?? who}
+              onInput={v => {
+                nameDraft = v
+              }}
+              onSubmit={v => {
+                nameDraft = null
+                void saveName($, v.trim()).then(() => $.ui.toast(v.trim() === '' ? '인사말에서 이름을 뺐어요' : `인사말 이름을 ${v.trim()}(으)로 바꿨어요`))
+              }}
+            />,
+          ]
+        ) : (
+          <Text dimColor>근무 시간·집중 시간·이름은 /workhours · /pomodoro · /todo-name으로 바꿀 수 있어요.</Text>
+        )}
         {divider('set-line-0')}
         <Text weight="bold">🎨 색상</Text>
         <Text dimColor>어두운 화면이면 어둡게, 흰 화면이면 밝게를 고르세요.</Text>
@@ -599,8 +640,7 @@ export const register: Register = on => {
   on('command.run', { command: 'workhours' }, async ($, e) => {
     const h = e.args.trim() === '' ? await read($, hours) : parseHours(e.args)
     if (!h) return { text: '사용법: /workhours 09:00 18:30 (출근 퇴근, 24시간제, 퇴근이 출근보다 늦게)' }
-    await $.store.set('workhours', `${h.start} ${h.end}`) // kept across sessions by the host
-    await update($, hours, () => h)
+    await saveHours($, h)
     return { text: `출근 ${h.start} · 퇴근 ${h.end}` }
   })
 
@@ -768,8 +808,11 @@ export const register: Register = on => {
     const leaveTextOf = leave.meter ? `${leave.meter.clock} 남음 · ${leave.meter.pct}%` : leave.text
     const leaveCells = cellWidth('🏃 퇴근 ') + 4 + (isTextOnly ? trackChars : trackPx / PX_PER_CELL) + cellWidth(leaveTextOf)
     const countText = `${boxes.done}/${boxes.total}`
+    // a running or paused 🍅 shows at the row's end, so the time left needs no pane
+    const tp = (await read($, pomo)) ?? freshPomo('') // a value never written reads as nothing in tests
+    const pomoText = tp.status === 'idle' ? '' : `${tp.mode === 'rest' ? '☕' : '🍅'} ${pomoClock(remaining(tp, now))}${tp.status === 'paused' ? ' ⏸' : ''}`
     // same length as the 퇴근 row: its tag, 🏠 track 🚩 and time, less this row's tag and count
-    const gaugeCells = Math.max(boxes.total * 2, Math.round(leaveCells - cellWidth('☑ 오늘 할 일 ') - cellWidth(countText)))
+    const gaugeCells = Math.max(boxes.total * 2, Math.round(leaveCells - cellWidth('☑ 오늘 할 일 ') - cellWidth(countText) - (pomoText ? cellWidth(pomoText) + 3 : 0)))
     const leaveBody =
       leave.kind === 'cheer' ? (
         <Text size="title" weight="bold" color={C.orange} wrap="truncate">{leave.text}</Text>
@@ -788,10 +831,10 @@ export const register: Register = on => {
       // Hidden (nothing drawn) while there is no checklist for the request at hand.
       // One box per task of today's /todo list, filled as each is done; the boxes share the row's width.
       todo:
-        boxes.total > 0 ? (
+        boxes.total > 0 || pomoText ? (
           <Box key="todo" flexDirection="row" alignItems="center" columnGap={1} backgroundColor={C.navy} paddingX={1}>
             {tag('☑', '오늘 할 일')}
-            {isTextOnly ? (
+            {boxes.total === 0 ? null : isTextOnly ? (
               <Text mono wrap="truncate">
                 {boxGaugeText(boxes.done, boxes.total, gaugeCells).map((b, i) => (
                   <Text key={`box-${i}`} color={b.isDone ? C.teal : C.boxEmpty}>{(i > 0 ? ' ' : '') + b.text}</Text>
@@ -805,7 +848,8 @@ export const register: Register = on => {
                 height={BOX_H}
               />
             )}
-            <Text mono tabular size="footnote" weight="bold" color={C.name}>{countText}</Text>
+            {boxes.total === 0 ? null : <Text mono tabular size="footnote" weight="bold" color={C.name}>{countText}</Text>}
+            {pomoText ? <Text mono tabular size="footnote" color={tp.mode === 'rest' ? C.green : C.orange}>{`· ${pomoText}`}</Text> : null}
           </Box>
         ) : null,
       plan: work ? (
@@ -824,15 +868,6 @@ export const register: Register = on => {
           </Text>
         </Box>
       ) : null,
-      shield: (
-        <Box key="shield" flexDirection="row" flexWrap="wrap" alignItems="center" columnGap={1} backgroundColor={C.navy} paddingX={1}>
-          {tag(isMasked ? '🙈' : '👁', '가림')}
-          <Text mono size="footnote" color={isMasked ? C.name : C.orange} weight="bold">{isMasked ? '켜짐' : '꺼짐'}</Text>
-          <Text mono size="footnote" color={C.gray} wrap="truncate">
-            {isMasked ? '· 이메일·전화번호를 가려서 보여요' : '· 원래대로 보이는 중'}
-          </Text>
-        </Box>
-      ),
       chips: nextChips.length === 0 ? null : (
         <Box key="next" flexDirection="row" flexWrap="wrap" alignItems="center" columnGap={1} rowGap={isTerminal ? 0 : 1} backgroundColor={C.navy} paddingX={1}>
           {tag('⚡', '빠른 요청')}
@@ -863,9 +898,9 @@ export const register: Register = on => {
     const gear = (
       <Box key="gear" flexDirection="row" columnGap={1} paddingX={1} flexWrap="wrap" justifyContent="flex-end">
         {cfg.enabled.shield === false ? null : (
-          // the 가림 switch lives here: a button is taller than a line of text, and the 가림 row stays one line
+          // the switch says the state itself: no band row of its own
           <Button key="toggle-shield" onPress={() => update($, isShielded, v => v === false)}>
-            {isMasked ? '👁 보이기' : '🙈 가리기'}
+            {isMasked ? '🙈 모자이크 켜짐' : '👁 모자이크 꺼짐'}
           </Button>
         )}
         {cfg.enabled.tasks === false ? null : (

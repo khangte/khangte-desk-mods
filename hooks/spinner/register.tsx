@@ -5,10 +5,10 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 // Owned by usage-band's settings panel; read here only for the spinner's on/off switch.
-const settings = atom({ plugin: 'khangte-dashboard-mods', key: 'settings' } as const, DEFAULT_SETTINGS as Settings)
+const settings = atom({ plugin: 'khangte-desk-mods', key: 'settings' } as const, DEFAULT_SETTINGS as Settings)
 // Owned by today-tasks; read here only to show its countdown.
-const pomo = atom({ plugin: 'khangte-dashboard-mods', key: 'pomo' } as const, freshPomo(''))
-const turn = atom({ plugin: 'khangte-dashboard-mods', key: 'turn' } as const, { sec: 0, tools: 0, base: 0 })
+const pomo = atom({ plugin: 'khangte-desk-mods', key: 'pomo' } as const, freshPomo(''))
+const turn = atom({ plugin: 'khangte-desk-mods', key: 'turn' } as const, { sec: 0, tools: 0, base: 0 })
 
 export const PHRASES = [
   '완벽보다 완료',

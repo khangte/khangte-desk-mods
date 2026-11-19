@@ -13,14 +13,14 @@ import { TABS, cleanTasks, dayOf, greeting, listFor, pairs, parseTodo, pruneDone
 import { DEFAULT_SETTINGS } from '../band/layout'
 import { C, usePalette } from '../band/control'
 
-const tasks = atom({ plugin: 'khangte-dashboard-mods', key: 'tasks' } as const, [])
-const tab = atom({ plugin: 'khangte-dashboard-mods', key: 'tab' } as const, '오늘')
-const name = atom({ plugin: 'khangte-dashboard-mods', key: 'name' } as const, '') // set with /todo-name; a shared copy carries no one's name
-const pomo = atom({ plugin: 'khangte-dashboard-mods', key: 'pomo' } as const, freshPomo(''))
-const minutes = atom({ plugin: 'khangte-dashboard-mods', key: 'minutes' } as const, DEFAULT_MINUTES)
-const tick = atom({ plugin: 'khangte-dashboard-mods', key: 'taskTick' } as const, 0)
+const tasks = atom({ plugin: 'khangte-desk-mods', key: 'tasks' } as const, [])
+const tab = atom({ plugin: 'khangte-desk-mods', key: 'tab' } as const, '오늘')
+const name = atom({ plugin: 'khangte-desk-mods', key: 'name' } as const, '') // set with /todo-name; a shared copy carries no one's name
+const pomo = atom({ plugin: 'khangte-desk-mods', key: 'pomo' } as const, freshPomo(''))
+const minutes = atom({ plugin: 'khangte-desk-mods', key: 'minutes' } as const, DEFAULT_MINUTES)
+const tick = atom({ plugin: 'khangte-desk-mods', key: 'taskTick' } as const, 0)
 // Owned by usage-band's ⚙ 모즈 설정; read here only for this mod's on/off switch.
-const settings = atom({ plugin: 'khangte-dashboard-mods', key: 'settings' } as const, DEFAULT_SETTINGS as Settings)
+const settings = atom({ plugin: 'khangte-desk-mods', key: 'settings' } as const, DEFAULT_SETTINGS as Settings)
 
 export const PANE = 'today-tasks'
 export const TITLE = '🗓 오늘 할 일'
@@ -93,16 +93,22 @@ async function setMinutes($: EngineInterface, m: Minutes) {
 }
 
 /** What is typed in a minutes field, kept here and not in the state: the pane redraws every second. */
-const drafts: { focus?: string; rest?: string } = {}
+export const minuteDrafts: { focus?: string; rest?: string } = {}
 
-/** One field's 적용 (its Enter): that length alone; a bad number changes nothing. */
-async function applyMinute($: EngineInterface, k: 'focus' | 'rest', v: string) {
-  delete drafts[k]
+/** One field's 적용 (its Enter) in ⚙ 모즈 설정: that length alone; a bad number changes nothing. */
+export async function applyMinute($: EngineInterface, k: 'focus' | 'rest', v: string) {
+  delete minuteDrafts[k]
   const n = Number(v.trim())
   if (!Number.isInteger(n) || n < 1 || n > 180) return $.ui.toast('1~180 사이의 분을 적어 주세요')
   const cur = await read($, minutes)
   await setMinutes($, { ...cur, [k]: n })
   $.ui.toast(`${k === 'focus' ? '집중' : '휴식'} 시간을 ${n}분으로 바꿨어요`)
+}
+
+/** The greeting's name: /todo-name and ⚙ 모즈 설정's field both come here. */
+export async function saveName($: EngineInterface, who: string) {
+  await update($, name, () => who)
+  await $.store.set('name', who)
 }
 
 async function openPane($: EngineInterface) {
@@ -137,8 +143,7 @@ export const register: Register = on => {
   on('command.run', { command: 'todo-name' }, async ($, e) => {
     const who = e.args.trim()
     if (who === '') return { text: `지금 이름: ${await read($, name)} (바꾸려면 /todo-name 이름)` }
-    await update($, name, () => who)
-    await $.store.set('name', who)
+    await saveName($, who)
     return { text: `인사말 이름을 ${who}(으)로 바꿨어요.` }
   })
 
@@ -203,23 +208,6 @@ export const register: Register = on => {
           <Button key="pomo-skip" onPress={() => setPomo($, (p, n, mm) => skip(p, n, mm))}>⏭ 건너뛰기</Button>
           <Button key="pomo-reset" onPress={() => resetPomo($)}>↺ 처음으로</Button>
         </Box>
-        {'Input' in r ? (
-          <Box key="pomo-minutes" flexDirection="row" columnGap={2} alignItems="center" flexWrap="wrap" justifyContent="center">
-            {(['focus', 'rest'] as const).map(k => (
-              <r.Input
-                key={`pomo-${k}`}
-                label={k === 'focus' ? '집중(분)' : '휴식(분)'}
-                placeholder="1~180"
-                submitLabel="적용"
-                value={drafts[k] ?? String(m[k])}
-                onInput={v => {
-                  drafts[k] = v
-                }}
-                onSubmit={v => void applyMinute($, k, v)}
-              />
-            ))}
-          </Box>
-        ) : null}
       </Box>
     )
 

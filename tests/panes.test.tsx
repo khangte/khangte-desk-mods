@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 const BAND = {
-  plugin: 'khangte-dashboard-mods', component: 'AbovePrompt', requestId: 'above',
+  plugin: 'khangte-desk-mods', component: 'AbovePrompt', requestId: 'above',
   props: { hasSurvey: false, isWorking: false, maxRows: 20, bodyColumns: 120, scroll: { offset: 0, bodyRows: 20 } },
 } as const
 

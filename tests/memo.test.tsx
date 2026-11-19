@@ -1,11 +1,11 @@
 import { expect, mock, test } from 'claude-code/testing'
 
 const PANE = {
-  plugin: 'khangte-dashboard-mods', component: 'Pane', requestId: 'control-center',
+  plugin: 'khangte-desk-mods', component: 'Pane', requestId: 'control-center',
   props: { title: '🎛 제어센터', isFocused: true, bodyColumns: 50, placement: 'dock', scroll: { offset: 0, bodyRows: 30 }, view: {} },
 } as const
 const BAND = {
-  plugin: 'khangte-dashboard-mods', component: 'AbovePrompt', requestId: 'above',
+  plugin: 'khangte-desk-mods', component: 'AbovePrompt', requestId: 'above',
   props: { hasSurvey: false, isWorking: false, maxRows: 20, bodyColumns: 120, scroll: { offset: 0, bodyRows: 20 } },
 } as const
 const END = { answer: '다 했어요', durationMs: 1000, isAborted: false, turnId: 't1', reason: 'answer' } as const
@@ -55,15 +55,20 @@ for (const surface of ['desktop', 'terminal'] as const) {
     await ui.input({ key: 'memo-input', text: '표를 그래프로도 그려 줘', kind: 'change' })
     expect(w.kept.get('memo')).toBe('표를 그래프로도 그려 줘')
     expect(w.mem.get('memo')?.version).toBe(before)
-    // and the quick-request field keeps what is half typed across a redraw
-    await ui.input({ key: 'quick-add', text: '/ponytail', kind: 'change' })
     await ui.unmount()
     ui = await $.ui.mount({ ...PANE, surface })
     expect((await ui.find({ key: 'memo-input' }))?.props.value).toBe('표를 그래프로도 그려 줘')
+    await ui.unmount()
+    // and ⚙'s quick-request field keeps what is half typed across a redraw
+    const SET = { ...PANE, requestId: 'mods-settings' } as const
+    ui = await $.ui.mount({ ...SET, surface })
+    await ui.input({ key: 'quick-add', text: '/ponytail', kind: 'change' })
+    await ui.unmount()
+    ui = await $.ui.mount({ ...SET, surface })
     expect((await ui.find({ key: 'quick-add' }))?.props.value).toBe('/ponytail')
     await ui.input({ key: 'quick-add', text: '/ponytail-audit' }) // Enter: added, field cleared
     await ui.unmount()
-    ui = await $.ui.mount({ ...PANE, surface })
+    ui = await $.ui.mount({ ...SET, surface })
     expect((await ui.find({ key: 'quick-add' }))?.props.value).toBe('')
     await ui.unmount()
 

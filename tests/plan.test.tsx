@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 const UP = 'mcp__ccd_turn__update_plan'
 const BAND = {
-  plugin: 'khangte-dashboard-mods', component: 'AbovePrompt', requestId: 'above',
+  plugin: 'khangte-desk-mods', component: 'AbovePrompt', requestId: 'above',
   props: { hasSurvey: false, isWorking: true, maxRows: 20, bodyColumns: 120, scroll: { offset: 0, bodyRows: 20 } },
 } as const
 const ITEMS = ['자료 모으기', '표 만들기', '그래프 그리기', '요약 쓰기', '검토하기'].map((content, i) => ({

@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { EFFORTS, planAfter, planView, ringSvg, ringText } from '../hooks/band/control'
+import { EFFORTS, planAfter, planView } from '../hooks/band/control'
 
 const UP = 'mcp__ccd_turn__update_plan'
 const PLAN_ITEMS = [
@@ -10,11 +10,11 @@ const PLAN_ITEMS = [
   { content: '정리', status: 'pending' },
 ]
 const PANE = {
-  plugin: 'khangte-dashboard-mods', component: 'Pane', requestId: 'control-center',
+  plugin: 'khangte-desk-mods', component: 'Pane', requestId: 'control-center',
   props: { title: '🎛 제어센터', isFocused: false, bodyColumns: 50, placement: 'dock', scroll: { offset: 0, bodyRows: 30 }, view: {} },
 } as const
 const BAND = {
-  plugin: 'khangte-dashboard-mods', component: 'AbovePrompt', requestId: 'above',
+  plugin: 'khangte-desk-mods', component: 'AbovePrompt', requestId: 'above',
   props: { hasSurvey: false, isWorking: false, maxRows: 20, bodyColumns: 120, scroll: { offset: 0, bodyRows: 20 } },
 } as const
 
@@ -33,18 +33,7 @@ test('checklist: follows the desktop task list, wrap_up, and the CLI TodoWrite; 
   expect(planView(null)).toBeUndefined()
 })
 
-test('rings, links', () => {
-  expect(ringSvg(40)).toContain('>40%<')
-  expect(ringSvg(undefined)).toContain('>–<')
-  // blue under 40%, yellow from 40, orange from 60, red from 80
-  expect(ringSvg(39)).toContain('stroke="#60a5fa"')
-  expect(ringSvg(40)).toContain('stroke="#facc15"')
-  expect(ringSvg(60)).toContain('stroke="#fb923c"')
-  expect(ringSvg(80)).toContain('stroke="#ef4444"')
-  expect(ringSvg(90)).toContain('stroke="#ef4444"')
-  expect(ringSvg(undefined)).not.toMatch(/#facc15|#fb923c|#ef4444/)
-  expect(ringSvg(40)).toContain('fill="#dbeafe"') // light number on the dark app
-  expect([ringText(0), ringText(50), ringText(100), ringText(undefined)]).toEqual(['○ 0%', '◑ 50%', '● 100%', '○ –'])
+test('effort buttons', () => {
   expect(EFFORTS.map(f => [f.label, f.level])).toEqual([['low', 'low'], ['mid', 'medium'], ['high', 'high'], ['xhigh', 'xhigh'], ['max', 'max']])
 })
 
@@ -72,7 +61,7 @@ const SEED = {
 }
 
 for (const surface of ['desktop', 'terminal'] as const) {
-  test(`control centre: three rings, the checklist bar, a Model row and an Effort row under it (${surface})`, async ($, on) => {
+  test(`control centre: no usage rings (the band has them), a Model row and an Effort row (${surface})`, async ($, on) => {
     const { mem, kept } = wire(on, SEED)
     const ran: string[] = []
     const filled: string[] = []
@@ -92,15 +81,9 @@ for (const surface of ['desktop', 'terminal'] as const) {
 
     const ui = await $.ui.mount({ ...PANE, surface })
     const texts = (await ui.findAll({ type: 'Text' })).map(t => t.text)
-    for (const label of ['컨텍스트', '5시간 한도', '주간 한도']) expect(texts).toContain(label)
+    for (const label of ['컨텍스트', '5시간 한도', '주간 한도']) expect(texts).not.toContain(label)
     expect(texts).not.toContain('이번 작업') // the checklist bar is above the prompt only
-    expect(texts).toContain('↻1h49')
-    if (surface === 'desktop') {
-      const svgs = await ui.findAll({ type: 'Svg' })
-      expect(svgs.map(s => s.props.alt)).toEqual(['컨텍스트 33%', '5시간 한도 43%', '주간 한도 14%'])
-    } else {
-      expect(texts).toContain('◑ 43%')
-    }
+    expect(await ui.findAll({ type: 'Svg' })).toHaveLength(0)
     expect(texts.join('')).not.toMatch(/\$|원|USD|cost/i) // no money anywhere
     expect(await ui.find({ type: 'Link' })).toBeUndefined() // no music link any more
     expect(texts.join('')).not.toContain('control-music')

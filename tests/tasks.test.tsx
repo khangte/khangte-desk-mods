@@ -7,7 +7,7 @@ import { cleanTasks, dayOf, greeting, listFor, pairs, parseTodo, pruneDone, tabO
 const NOW = new Date(2026, 10, 6, 9, 0, 0).getTime() // Fri 2026-11-06 09:00
 const TODAY = '2026-11-06'
 const PANE = {
-  plugin: 'khangte-dashboard-mods', component: 'Pane', requestId: 'today-tasks',
+  plugin: 'khangte-desk-mods', component: 'Pane', requestId: 'today-tasks',
   props: { title: '오늘의 작업', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} },
 } as const
 const SAMPLE: Task[] = [

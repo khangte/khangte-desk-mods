@@ -6,17 +6,17 @@ import type { Settings } from '../../types'
  * Listed in the default top-to-bottom order above the prompt.
  */
 export const BANDS = [
-  { id: 'todo', name: '오늘 할 일 게이지 (/todo)', icon: '☑' },
   { id: 'leave', name: '퇴근 카운터 (걷는 강아지)', icon: '🏃' },
-  { id: 'usage', name: '사용량 줄', icon: '⏱' },
-  { id: 'sys', name: '컴퓨터 상태 줄', icon: '🖥' },
-  { id: 'shield', name: '가림막 (이메일·전화번호)', icon: '🙈' },
-  { id: 'chips', name: '빠른 요청 단추', icon: '⚡' },
-  { id: 'plan', name: '이번 작업 진행 막대', icon: '📋' },
+  { id: 'todo', name: '오늘 할 일 게이지 (/todo)', icon: '☑' },
+  { id: 'usage', name: 'Claude 사용량', icon: '⏱' },
+  { id: 'sys', name: '컴퓨터 상태', icon: '🖥' },
+  { id: 'plan', name: '작업 진행률', icon: '📋' },
+  { id: 'chips', name: '원터치 요청 버튼', icon: '⚡' },
 ] as const
 
 /** Switch-only items: they draw no band, so they have no place in the order. */
 export const FEATURES = [
+  { id: 'shield', name: '모자이크 (이메일·전화번호)', icon: '🙈' }, // its switch is the bottom row's button
   { id: 'spinner', name: '동기부여 스피너', icon: '💬' },
   { id: 'tasks', name: '오늘 할 일', icon: '🗓' },
   { id: 'control', name: 'Claude 도구', icon: '🎛' },
@@ -25,7 +25,7 @@ export const FEATURES = [
 export type BandId = (typeof BANDS)[number]['id']
 
 /** Bumped when the layout model changes: an order saved under an older one is dropped, switches kept. */
-export const LAYOUT_VERSION = 3
+export const LAYOUT_VERSION = 4
 
 const IDS: readonly string[] = BANDS.map(b => b.id)
 
