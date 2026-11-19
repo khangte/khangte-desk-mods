@@ -37,7 +37,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
       const ui = await $.ui.mount({ ...band(columns), surface })
       const texts = (await ui.findAll({ type: 'Text' })).filter(t => t.children.every(c => typeof c === 'string')).map(t => t.text)
       texts.splice(texts.findIndex(t => t.startsWith('🖥'))) // the system row is below; this test counts the usage row
-      texts.splice(0, texts.findIndex(t => t.startsWith('⏱'))) // and the 퇴근 row above
+      texts.splice(0, texts.findIndex(t => t.startsWith('☀'))) // and the 퇴근 row above
       const svgs = (await ui.findAll({ type: 'Svg' })).filter(s => s.props.alt !== ' ').slice(1, 4) // [0] is the dog's; row struts left out
       const all = texts.join('')
       const bar = surface === 'desktop' ? (svgs[0]?.props.width as number) : (all.match(/[█░]+/)?.[0].length ?? 0)
@@ -54,7 +54,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
         expect(new Set(svgs.map(s => s.props.width)).size).toBe(1) // same width for all three
         expect(svgs[0]?.props.height).toBe(18) // no taller than a line of text
         expect(bar).toBeLessThanOrEqual(120)
-        expect(String(svgs[1]?.props.source)).toContain('#fb923c') // WEEK 88% → orange
+        expect(String(svgs[2]?.props.source)).toContain('#fb923c') // WEEK 88% → orange
         expect(width(texts.filter(t => !/[█░]/.test(t)), svgs.map(s => s.props.width as number))).toBeLessThanOrEqual(columns)
       } else {
         expect(width(texts.filter(t => !/^[█░]+$/.test(t)), [])).toBeLessThanOrEqual(columns)

@@ -640,9 +640,9 @@ export const register: Register = on => {
     const isTerminal = e.surface === 'terminal'
     const { bar, showReset } = fit(e.props.bodyColumns, isTerminal ? 20 : 120 / PX_PER_CELL)
     const cells: Cell[] = [
+      { icon: weather(u.context), name: 'CONTEXT', color: C.cyan, pct: u.context, hasReset: false },
       { icon: '⏱', name: 'SESSION', color: C.teal, pct: u.session, reset: u.sessionReset, hasReset: true },
       { icon: '📅', name: 'WEEK', color: C.green, pct: u.week, reset: u.weekReset, hasReset: true },
-      { icon: weather(u.context), name: 'CONTEXT', color: C.cyan, pct: u.context, hasReset: false },
     ]
     const r = $.ui.resolve(e)
     const { Box, Button, Text } = r
