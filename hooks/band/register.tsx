@@ -6,11 +6,12 @@ import { tasksSessionStart } from '../tasks/register'
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderChildren, SessionUsage } from 'claude-code'
 
-import type { Hours, Settings, Sys, TodoTask, Usage } from '../../types'
+import type { Hours, Settings, Sys, Task, TodoTask, Usage } from '../../types'
+import { dayOf, listFor, thinBar, todayProgress } from '../tasks/tasks'
 
 import { BANDS, DEFAULT_SETTINGS, FEATURES, normalize, shift, toggle, visible } from './layout'
 import { DEFAULT_HOURS, leaveView, parseHours } from './leave'
-import { C, EFFORTS, MODELS, planAfter, planView, ringSvg, ringText, thinBarSvg, usePalette } from './control'
+import { C, EFFORTS, MODELS, planAfter, planView, ringSvg, ringText, usePalette } from './control'
 import { maskText } from './shield'
 
 const usage = atom({ plugin: 'khangte-dashboard-mods', key: 'usage' } as const, null)
@@ -215,24 +216,12 @@ export const dogSvg = (x: number, width: number, step: 0 | 1, trail = C.trail) =
 }
 
 
-const localDay = (ms: number) => {
-  const d = new Date(ms)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-/**
- * Today's /todo list as the bands read it: done today over all of today's (overdue open ones included),
- * and the open ones in the order the 오늘 tab shows them (by day, then time, no time last).
- */
+/** Today's /todo list as the bands read it: the 🗓 pane's own rules, so the band and the pane never disagree. */
 export const todayTodo = (tasks: readonly TodoTask[] | null | undefined, nowMs: number) => {
-  const today = localDay(nowMs)
-  const list = (tasks ?? []).map((t, i) => ({ t, i }))
-  const open = list
-    .filter(({ t }) => !t.done && t.day <= today)
-    .sort((a, b) => a.t.day.localeCompare(b.t.day) || (a.t.due ?? '99').localeCompare(b.t.due ?? '99') || a.i - b.i)
-    .map(({ t }) => t.title)
-  const done = list.filter(({ t }) => t.done && t.day === today).length
-  return { done, total: open.length + done, open }
+  const list = (tasks ?? []) as readonly Task[] // the same saved list; only day, due, done and title are read
+  const today = dayOf(nowMs)
+  const { done, total } = todayProgress(list, today)
+  return { done, total, open: listFor(list, '오늘', today).map(t => t.title) }
 }
 
 /** Cells a text takes in the mono font: Hangul, CJK and emoji take two. */
@@ -269,10 +258,15 @@ export const chips = (list: readonly string[] | null | undefined = []) =>
 let isWalking = false // set while drawing: the workday is under way
 
 let isPolling = false
-let sysFailures = 0 // in a row; after MAX_SYS_FAILURES the machine has no PowerShell (macOS, Linux, WSL without interop)
+// Failures in a row: past MAX_SYS_FAILURES only every SYS_BACKOFF-th poll tries (about once a minute), so a machine
+// with no PowerShell (macOS, Linux, WSL without interop) spawns little, and a busy one that timed out comes back.
+let sysFailures = 0
+let sysSkipped = 0
 const MAX_SYS_FAILURES = 3
+const SYS_BACKOFF = 4
 async function pollSys($: EngineInterface) {
-  if (isPolling || sysFailures >= MAX_SYS_FAILURES) return
+  if (isPolling) return
+  if (sysFailures >= MAX_SYS_FAILURES && ++sysSkipped % SYS_BACKOFF !== 0) return
   if (normalize(await read($, settings)).enabled.sys === false) return // no PowerShell spawned for a hidden row
   isPolling = true
   try {
@@ -320,7 +314,8 @@ export const register: Register = on => {
       const n = await $.clock.now()
       await update($, tick, () => n)
     })
-    $.clock.every(5000, () => {
+    // 15s: spawning PowerShell costs CPU itself, and every open session polls on its own
+    $.clock.every(15_000, () => {
       void pollSys($)
     })
     // The legs swing only while there is still a way to go.
@@ -604,6 +599,16 @@ export const register: Register = on => {
     return { text: `출근 ${h.start} · 퇴근 ${h.end}` }
   })
 
+  // the session's own effort, read from each main request: the lit button is right from the first answer on
+  // turn.step streams: the hook is a generator that passes the stream on untouched
+  on('turn.step', async function* ($, e, next) {
+    if (e.agentId === undefined && typeof e.effort === 'string' && (await read($, effort)) !== e.effort) {
+      const level = e.effort
+      await update($, effort, () => level)
+    }
+    return yield* next(e)
+  })
+
   // an /effort typed by hand moves the lit button too
   on('command.run', { command: 'effort' }, async ($, e, next) => {
     if (e.origin.kind !== 'plugin') await update($, effort, () => e.args.trim())
@@ -807,7 +812,7 @@ export const register: Register = on => {
               <Text color={C.dots}>{'▱'.repeat(20 - workFill)}</Text>
             </Text>
           ) : (
-            <r.Svg source={thinBarSvg(work.ratio, workWidth)} alt={`이번 작업 ${work.done}/${work.total}`} width={workWidth} height={10} />
+            <r.Svg source={thinBar(work.ratio, workWidth, C.pale, C.blue)} alt={`이번 작업 ${work.done}/${work.total}`} width={workWidth} height={10} />
           )}
           <Text mono tabular size="footnote" color={C.gray} wrap="truncate">
             {`${work.done}/${work.total} · ${work.now ? `${work.now} 중` : '완료 ✓'}`}

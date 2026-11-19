@@ -22,10 +22,8 @@ export type LeaveView = {
   kind: 'rest' | 'work' | 'soon' | 'tidy' | 'cheer' | 'over'
   text: string
   /** While the day runs: the parts the band draws in its own colours. */
-  meter?: { clock: string; full: number; empty: number; pct: number }
+  meter?: { clock: string; pct: number }
 }
-
-const BAR = 9
 
 /** What the counter says at `nowMs` (local time) for these hours. */
 export const leaveView = (nowMs: number, hours: Hours): LeaveView => {
@@ -43,12 +41,13 @@ export const leaveView = (nowMs: number, hours: Hours): LeaveView => {
     return { kind: 'over', text: `퇴근 시간 지났어요 🌙 +${Math.floor(min / 60)}:${pad(min % 60)}` }
   }
 
+  if (sec < start) return { kind: 'rest', text: '출근 전 ☕' } // no meter: the dog waits at home, still
+
   const left = end - sec
   const pct = Math.round(Math.min(1, Math.max(0, (sec - start) / (end - start))) * 100)
-  const full = Math.round((pct / 100) * BAR)
   const clock = `${Math.floor(left / 3600)}:${pad(Math.floor((left % 3600) / 60))}:${pad(left % 60)}`
-  const base = `🏃 퇴근까지 ${clock}  ${'▰'.repeat(full)}${'▱'.repeat(BAR - full)} ${pct}%`
-  const meter = { clock, full, empty: BAR - full, pct }
+  const base = `퇴근까지 ${clock} · ${pct}%` // plain words; the band draws the meter itself
+  const meter = { clock, pct }
   if (left <= 600) return { kind: 'tidy', text: `${base} 정리할 시간이에요 🧹`, meter }
   return { kind: left <= 1800 ? 'soon' : 'work', text: base, meter }
 }

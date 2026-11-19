@@ -36,9 +36,15 @@ export const parseTodo = (args: string, nowMs: number): Parsed => {
     else if (w === '오늘') day = dayOf(nowMs)
     else if (w === '내일') day = shiftDay(nowMs, 1)
     else if (w === '모레') day = shiftDay(nowMs, 2)
-    else if (date && Number(date[1]) >= 1 && Number(date[1]) <= 12 && Number(date[2]) >= 1 && Number(date[2]) <= 31)
-      day = `${new Date(nowMs).getFullYear()}-${pad(Number(date[1]))}-${pad(Number(date[2]))}`
-    else if (named) tag = named
+    else if (date && Number(date[1]) >= 1 && Number(date[1]) <= 12 && Number(date[2]) >= 1 && Number(date[2]) <= 31) {
+      const [mo, d] = [Number(date[1]), Number(date[2])]
+      const thisYear = new Date(nowMs).getFullYear()
+      // a day already gone this year means next year's: 1/5 typed in December (compared as text, so 2/29 needs no real date yet)
+      const year = `${thisYear}-${pad(mo)}-${pad(d)}` < dayOf(nowMs) ? thisYear + 1 : thisYear
+      const at = new Date(year, mo - 1, d) // checked in the year it lands in: 2/29 is fine for 2028
+      if (at.getMonth() !== mo - 1 || at.getDate() !== d) return { error: `${mo}/${d}은(는) 없는 날짜예요.` }
+      day = `${year}-${pad(mo)}-${pad(d)}`
+    } else if (named) tag = named
     else words.push(w)
   }
   const title = words.join(' ')
@@ -91,6 +97,14 @@ export const cleanTasks = (raw: unknown): Task[] =>
           typeof t.done === 'boolean' && TAGS.includes(t.tag) && (t.due === undefined || typeof t.due === 'string'),
       )
     : []
+
+/** Drops done tasks whose day is more than `days` before today, so the saved list does not grow forever. */
+export const pruneDone = (tasks: readonly Task[], nowMs: number, days = 30) => {
+  const d = new Date(nowMs)
+  d.setDate(d.getDate() - days)
+  const cutoff = dayOf(d.getTime())
+  return tasks.filter(t => !t.done || t.day >= cutoff)
+}
 
 /** The card's date line: `⏰ 15:00`, with the day when it is not today. */
 export const whenOf = (t: Task, today: string) => {

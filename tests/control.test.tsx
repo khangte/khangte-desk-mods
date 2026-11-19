@@ -45,7 +45,7 @@ test('rings, links', () => {
   expect(ringSvg(undefined)).not.toMatch(/#facc15|#fb923c|#ef4444/)
   expect(ringSvg(40)).toContain('fill="#dbeafe"') // light number on the dark app
   expect([ringText(0), ringText(50), ringText(100), ringText(undefined)]).toEqual(['○ 0%', '◑ 50%', '● 100%', '○ –'])
-  expect(EFFORTS.map(f => [f.label, f.level])).toEqual([['low', 'low'], ['mid', 'medium'], ['high', 'high']])
+  expect(EFFORTS.map(f => [f.label, f.level])).toEqual([['low', 'low'], ['mid', 'medium'], ['high', 'high'], ['xhigh', 'xhigh'], ['max', 'max']])
 })
 
 /** In-memory state and store. */
@@ -146,5 +146,21 @@ test('a command that fails after running fills nothing into the prompt box', asy
   await ui.press({ key: 'model-claude-sonnet-5-5' })
   await ui.press({ key: 'effort-low' })
   expect(filled).toEqual([])
+  await ui.unmount()
+})
+
+test("the session's effort lights its button from the first request; a subagent's does not", async ($, on) => {
+  wire(on, SEED)
+  on('turn.step', async function* (_: unknown, e: { turnId: string; index: number }) {
+    return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn', usage: null }
+  })
+  // a stream runs as it is read: read each one to its end
+  for (const input of [
+    { turnId: 't1', index: 0, model: 'claude-opus-5-5', effort: 'xhigh', messageCount: 1 },
+    { turnId: 't2', index: 0, model: 'claude-haiku-5-5', effort: 'low', messageCount: 1, agentId: 'a1' },
+  ] as const) for await (const _ of $.turn.step(input));
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await ui.find({ key: 'effort-xhigh' }))?.props.variant).toBe('primary')
+  expect((await ui.find({ key: 'effort-low' }))?.props.variant).toBe('secondary')
   await ui.unmount()
 })

@@ -76,7 +76,7 @@ claude plugin uninstall khangte-dashboard-mods@my-mods
 | ☑ 오늘 할 일 게이지 | 오늘 할 일 중 끝낸 만큼 채워지는 상자 |
 | 🏃 퇴근 카운터 | 퇴근까지 남은 시간과 그 길을 걷는 강아지 🐕 (`/workhours`로 시각 설정) |
 | ⏱ 사용량 줄 | SESSION(5시간) · WEEK(주간) · CONTEXT 한도 |
-| 🖥 컴퓨터 상태 줄 | CPU · RAM · 배터리 (5초마다 읽기만 합니다. Windows·WSL 전용이며, 읽을 수 없으면 줄이 숨겨집니다) |
+| 🖥 컴퓨터 상태 줄 | CPU · RAM · 배터리 (15초마다 읽기만 합니다. Windows·WSL 전용이며, 읽을 수 없으면 줄이 숨겨집니다) |
 | 🙈 가림막 | 답변 속 이메일·전화번호를 가려서 표시 (원본은 그대로 유지) |
 | ⚡ 빠른 요청 단추 | 🎛 Claude 도구에 적어 둔 요청. 누르면 입력창에 채워짐 |
 | 📋 이번 작업 진행 막대 | Claude가 지금 하는 일의 체크리스트 진행률 |
@@ -89,7 +89,7 @@ claude plugin uninstall khangte-dashboard-mods@my-mods
 **🎛 Claude 도구**
 
 - **📊 사용량**: 컨텍스트 · 5시간 한도 · 주간 한도 고리 (40%부터 노랑, 60% 주황, 80% 빨강)
-- **🤖 모델**: Model(Opus / Sonnet)과 Effort(low / mid / high) 단추. 누르면 바로 적용됩니다 (`/model opus`, `/effort low`와 같습니다).
+- **🤖 모델**: Model(Opus / Sonnet)과 Effort(low / mid / high / xhigh / max) 단추. 지금 쓰는 effort에 불이 들어옵니다. 누르면 바로 적용됩니다 (`/model opus`, `/effort low`와 같습니다).
 - **⚡ 빠른 요청**: 입력창 위 ⚡ 단추가 될 요청 적기 · ▲ 순서 · ✕ 지우기
 - **📝 다음 요청 메모**: Claude가 일하는 동안 다음에 시킬 일을 적어 두고, 끝나면 입력창에 채우기
 

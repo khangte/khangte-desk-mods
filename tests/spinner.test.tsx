@@ -27,11 +27,15 @@ for (const surface of ['desktop', 'terminal'] as const) {
     let state = { sec: 0, tools: 0, base: 0 }
     const toasts: string[] = []
     const clock = mock.clock(on, { now: 1_000_000 })
-    on('state.get', (_, e) => ({ value: { value: e.key === 'settings' ? null : state, version: 1 } }))
-    on('state.set', (_, e) => ((state = e.value as typeof state), { value: { isSet: true, version: 1 } }))
+    // only the spinner's own value is kept; the band's turn.complete reads and writes other keys
+    on('state.get', (_, e) => ({ value: e.key === 'turn' ? { value: state, version: 1 } : { value: undefined, version: 0 } }))
+    on('state.set', (_, e) => (e.key === 'turn' && (state = e.value as typeof state), { value: { isSet: true, version: 1 } }))
     on('turn.start', (_, e) => ({ turnId: e.turnId }))
     on('tool.call', () => ({ result: {} }))
     on('ui.toast', (_, e) => (toasts.push(String(e.text)), { value: undefined }))
+    on('turn.complete', (_: unknown, e: { answer: string }) => ({ text: e.answer }))
+    on('session.usage', () => ({ value: { startedAt: 0, context: { window: 1 }, rateLimits: [] } }))
+    on('session.model', () => ({ value: 'claude-opus-5-5' }))
     on('ui.render', ($, e) => {
       const { Text } = $.ui.resolve(e)
       return <Text>{String(e.props.word) + String(e.props.suffix)}</Text>
@@ -39,6 +43,8 @@ for (const surface of ['desktop', 'terminal'] as const) {
 
     await $.turn.start({ text: 'hi', turnId: 't1' })
     for (let i = 0; i < 3; i++) await $.tool.call({ tool: 'Bash', command: 'ls' })
+    // a subagent finishing mid-turn must not stop the main turn's clock
+    await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer', agentId: 'a1' })
     await clock.advance(12_000)
     let ui = await $.ui.mount({ ...SPINNER, surface })
     const text = (await ui.find({ type: 'Text' }))?.text

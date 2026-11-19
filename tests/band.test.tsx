@@ -100,22 +100,33 @@ test('system row shows, one row each at narrow width', async ($, on) => {
   }
 })
 
-test('polls every 5 seconds without a model call', async ($, on) => {
+test('polls every 15 seconds without a model call; backs off while PowerShell fails, and comes back', async ($, on) => {
   mock.store(on)
   on('command.register', () => ({ value: { command: 'workhours' } }))
-  let runs = 0
   on('state.get', () => ({ value: { value: undefined, version: 0 } }))
   on('state.set', () => ({ value: { isSet: true, version: 1 } }))
-  on('clock.now', () => ({ value: NOW }))
-  const every: Array<[number, () => void]> = []
+  const time = mock.clock(on, { now: NOW })
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.usage', () => ({ value: { startedAt: 0, context: { window: 1 }, rateLimits: [] } }))
-  on('process.run', () => (runs++, { value: { exitCode: 0, stdout: '{"cpu":1}', stderr: '' } }))
-  on('clock.every', (_, e) => (every.push([e.ms, e.fn]), { value: () => {} }))
+  let runs = 0
+  let isFailing = false
+  on('process.run', () => (runs++, { value: isFailing ? { exitCode: 1, stdout: '', stderr: 'busy' } : { exitCode: 0, stdout: '{"cpu":1}', stderr: '' } }))
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
-  expect(every.some(([ms]) => ms === 5000)).toBe(true)
-  for (let i = 0; i < 50; i++) await Promise.resolve() // let the unawaited first poll finish before the test ends
-  expect(runs).toBeGreaterThan(0)
+  await time.settle()
+  expect(runs).toBe(1) // the first poll, at the start
+  await time.advance(45_000)
+  expect(runs).toBe(4) // then one every 15s
+
+  isFailing = true
+  await time.advance(45_000) // three failures in a row
+  runs = 0
+  await time.advance(120_000) // 8 ticks
+  expect(runs).toBe(2) // backed off: one try in four, not stopped for good
+  isFailing = false
+  await time.advance(60_000) // the next try succeeds...
+  runs = 0
+  await time.advance(45_000)
+  expect(runs).toBe(3) // ...and every tick polls again
 })
 
 const DOG_PX = ['#B07A42', '#6E4123', '#1B1B1B', '#E2C08E']

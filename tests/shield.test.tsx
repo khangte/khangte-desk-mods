@@ -32,6 +32,12 @@ test('masks emails and phone numbers, code blocks too, and nothing else', () => 
   expect(out).toContain("const to = '●●@가림' // ●●● 가림") // inside the code fence
 })
 
+test('phone numbers without hyphens, with spaces, or with +82 are masked too', () => {
+  for (const n of ['01012345678', '010 1234 5678', '+82 10-1234-5678', '+82-2-123-4567', '0212345678', '070-1234-5678', '080-123-4567', '0505-123-4567'])
+    expect(maskText(`연락처 ${n} 입니다`)).toBe('연락처 ●●● 가림 입니다')
+  expect(maskText('주문 120123456789 과 0.01012345678')).toBe('주문 120123456789 과 0.01012345678') // longer runs and decimals stay
+})
+
 /** In-memory state, so a press and the redraw after it can be followed. */
 const wire = (on: any) => {
   const mem = new Map<string, { value: unknown; version: number }>()

@@ -9,7 +9,7 @@ import {
   DEFAULT_MINUTES, TOMATO_SIZE, advance, clock, freshPomo, parseMinutes, pause, progress, remaining, reset, rollDay, skip, start, tomatoSvg,
 } from './pomodoro'
 
-import { TABS, cleanTasks, dayOf, greeting, listFor, pairs, parseTodo, tabOf, thinBar, todayProgress, whenOf } from './tasks'
+import { TABS, cleanTasks, dayOf, greeting, listFor, pairs, parseTodo, pruneDone, tabOf, thinBar, todayProgress, whenOf } from './tasks'
 import { DEFAULT_SETTINGS } from '../band/layout'
 import { C, usePalette } from '../band/control'
 
@@ -319,8 +319,10 @@ export const register: Register = on => {
 /** 🗓 오늘 할 일's session start. Run from the band's hook of the same event: a plugin gets one hook per event */
 export async function tasksSessionStart($: EngineInterface, e: any, next: (e: any) => any) {
   const result = await next(e)
-  const saved = cleanTasks(await $.store.get('tasks'))
-  await update($, tasks, () => saved)
+  const loaded = cleanTasks(await $.store.get('tasks'))
+  const saved = pruneDone(loaded, await $.clock.now())
+  if (saved.length < loaded.length) await save($, saved)
+  else await update($, tasks, () => saved)
   const who = await $.store.get('name')
   if (typeof who === 'string' && who.trim() !== '') await update($, name, () => who)
   await $.command.register({

@@ -173,3 +173,18 @@ for (const surface of ['desktop', 'terminal'] as const) {
   })
 }
 
+
+test('after a long sleep the timer catches up with one notice, not one per missed phase', async ($, on) => {
+  const time = mock.clock(on, { now: T0 })
+  const { mem } = wire(on)
+  // a 1-minute focus that ran out an hour ago while the laptop slept: no tick ran in between
+  mem.set('minutes', { value: { focus: 1, rest: 1 }, version: 1 })
+  mem.set('pomo', { value: { mode: 'focus', status: 'running', endsAt: T0 - 3_600_000, leftMs: 0, done: 0, day: DAY }, version: 1 })
+  const toasts: string[] = []
+  on('ui.toast', (_: unknown, e: { text: string }) => (toasts.push(e.text), { value: undefined }))
+  on('ui.notify', () => ({ value: { isSent: true, channel: 'auto' } }))
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await time.advance(1_000) // the first tick after waking
+  expect(toasts).toHaveLength(1) // ~60 phases ended unseen; one notice
+  expect((mem.get('pomo')?.value as Pomo).done).toBeGreaterThan(25) // the missed tomatoes still count
+})

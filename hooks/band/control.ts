@@ -124,15 +124,11 @@ export const ringSvg = (pct: number | undefined, size = 72) => {
 export const ringText = (pct: number | undefined) =>
   pct === undefined ? '○ –' : `${['○', '◔', '◑', '◕', '●'][Math.min(4, Math.round(pct / 25))]} ${Math.round(pct)}%`
 
-/** A thin progress bar. */
-export const thinBarSvg = (ratio: number, width: number) =>
-  `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="10" viewBox="0 0 ${width} 10">` +
-  `<rect x="0" y="2" width="${width}" height="6" rx="3" fill="${C.pale}"/>` +
-  `<rect x="0" y="2" width="${Math.round(width * Math.min(1, Math.max(0, ratio)))}" height="6" rx="3" fill="${C.blue}"/></svg>`
-
 /** The effort buttons: the level `/effort` takes, and the button's word. */
 export const EFFORTS = [
   { level: 'low', label: 'low' },
   { level: 'medium', label: 'mid' },
   { level: 'high', label: 'high' },
+  { level: 'xhigh', label: 'xhigh' },
+  { level: 'max', label: 'max' },
 ] as const

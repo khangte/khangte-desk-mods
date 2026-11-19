@@ -13,10 +13,10 @@ test('parse /workhours args', () => {
 })
 
 test('counter: remaining to the second, bar and %, orange at 30m, tidy at 10m, cheer 3s, overtime, weekend', () => {
-  expect(text(at(9, 0))).toMatchObject({ kind: 'work', text: '🏃 퇴근까지 9:30:00  ▱▱▱▱▱▱▱▱▱ 0%' })
-  expect(text(at(14, 15, 20)).meter).toEqual({ clock: '4:14:40', full: 5, empty: 4, pct: 55 })
+  expect(text(at(9, 0))).toMatchObject({ kind: 'work', text: '퇴근까지 9:30:00 · 0%' })
+  expect(text(at(14, 15, 20)).meter).toEqual({ clock: '4:14:40', pct: 55 })
   const noon = text(at(14, 15, 20)) // 5h15m of 9h30m = 55%
-  expect(noon.text).toBe('🏃 퇴근까지 4:14:40  ▰▰▰▰▰▱▱▱▱ 55%')
+  expect(noon.text).toBe('퇴근까지 4:14:40 · 55%')
   expect(text(at(17, 59, 59)).kind).toBe('work') // 30:01 left
   expect(text(at(18, 0, 0)).kind).toBe('soon') // 30:00 left
   expect(text(at(17, 29, 59)).kind).toBe('work') // 1:00:01 left
@@ -27,7 +27,7 @@ test('counter: remaining to the second, bar and %, orange at 30m, tidy at 10m, c
   expect(text(at(18, 30, 2)).kind).toBe('cheer')
   expect(text(at(18, 30, 3)).text).toBe('퇴근 시간 지났어요 🌙 +0:00')
   expect(text(at(18, 42, 30)).text).toBe('퇴근 시간 지났어요 🌙 +0:12')
-  expect(text(at(8, 0)).text).toContain('0%') // before work: nothing elapsed yet
+  expect(text(at(8, 0))).toEqual({ kind: 'rest', text: '출근 전 ☕' }) // before work: no meter, the dog stays still
   expect(text(at(12, 0, 0, 7))).toEqual({ kind: 'rest', text: '오늘은 쉬는 날 ☀' }) // Saturday
   expect(text(at(12, 0, 0, 8)).kind).toBe('rest') // Sunday
 })

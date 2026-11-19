@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 import type { Task } from '../types'
 
-import { cleanTasks, dayOf, greeting, listFor, pairs, parseTodo, tabOf, todayProgress, whenOf } from '../hooks/tasks/tasks'
+import { cleanTasks, dayOf, greeting, listFor, pairs, parseTodo, pruneDone, tabOf, todayProgress, whenOf } from '../hooks/tasks/tasks'
 
 const NOW = new Date(2026, 10, 6, 9, 0, 0).getTime() // Fri 2026-11-06 09:00
 const TODAY = '2026-11-06'
@@ -26,6 +26,13 @@ test('/todo text: name, time, day words and tags', () => {
   expect(parseTodo('결산 11/30 10:00', NOW)).toMatchObject({ day: '2026-11-30', due: '10:00' })
   expect(parseTodo('회의 25:00', NOW)).toMatchObject({ title: '회의 25:00' }) // not a time, kept in the name
   expect('error' in parseTodo('  15:00 ', NOW)).toBe(true)
+  const dec = new Date(2026, 11, 20, 9).getTime()
+  expect(parseTodo('신년 계획 1/5', dec)).toMatchObject({ day: '2027-01-05' }) // already gone this year: next year's
+  expect(parseTodo('송년회 12/20', dec)).toMatchObject({ day: '2026-12-20' }) // today stays today
+  expect(parseTodo('보고 2/31', NOW)).toEqual({ error: '2/31은(는) 없는 날짜예요.' })
+  const march2027 = new Date(2027, 2, 10, 9).getTime()
+  expect(parseTodo('윤일 2/29', march2027)).toMatchObject({ day: '2028-02-29' }) // checked in the year it lands in
+  expect(parseTodo('윤일 2/29', NOW)).toEqual({ error: '2/29은(는) 없는 날짜예요.' }) // 2027 has none
 })
 
 test('tabs, order, pairs, card time line, and a saved list read back', () => {
@@ -132,6 +139,13 @@ test('🗓 오늘 할 일: greeting, then 🍅 집중 타이머, then ☑ 할 �
   expect(at('다음 할 일 단추')).toBe(-1)
   expect(await ui.find({ key: 'quick-add' })).toBeUndefined()
   await ui.unmount()
+})
+
+test('done tasks older than 30 days are dropped; open ones stay however old', () => {
+  const old = { id: 'o', title: '옛일', tag: '업무', day: '2026-09-01', done: true } as const
+  const oldOpen = { ...old, id: 'p', done: false }
+  const recent = { ...old, id: 'r', day: '2026-10-20' }
+  expect(pruneDone([old, oldOpen, recent], NOW).map(t => t.id)).toEqual(['p', 'r'])
 })
 
 test('greeting follows the hour: 아침 5-11, 오후 12-17, 저녁 otherwise', () => {

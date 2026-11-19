@@ -88,6 +88,7 @@ export async function spinnerToolCall($: EngineInterface, e: any, next: (e: any)
 
 /** Stops the spinner's clock. Run from the band's hook of the same event: a plugin gets one hook per event */
 export async function spinnerTurnComplete($: EngineInterface, e: any, next: (e: any) => any) {
+  if (e.agentId !== undefined) return next(e) // a subagent ending leaves the main turn's clock running
   timer?.cancel()
   timer = undefined
   return next(e)
