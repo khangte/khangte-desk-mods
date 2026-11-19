@@ -16,10 +16,12 @@ export const BANDS = [
 
 /** Switch-only items: they draw no band, so they have no place in the order. */
 export const FEATURES = [
-  { id: 'shield', name: '모자이크 (이메일·전화번호)', icon: '🙈' }, // its switch is the bottom row's button
-  { id: 'spinner', name: '동기부여 스피너', icon: '💬' },
-  { id: 'tasks', name: '오늘 할 일', icon: '🗓' },
-  { id: 'control', name: 'Claude 도구', icon: '🎛' },
+  // 기능: switches what it does
+  { id: 'spinner', name: '동기부여 스피너', icon: '💬', group: 'feature' },
+  { id: 'shield', name: '모자이크 (이메일·전화번호)', icon: '🙈', group: 'feature' }, // its button sits in the bottom row too
+  // 단추 줄: switches the pane's button in the bottom row (and the pane)
+  { id: 'tasks', name: '오늘 할 일', icon: '🗓', group: 'button' },
+  { id: 'control', name: 'Claude 도구', icon: '🎛', group: 'button' },
 ] as const
 
 export type BandId = (typeof BANDS)[number]['id']

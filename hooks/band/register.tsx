@@ -21,7 +21,7 @@ const sys = atom({ plugin: 'khangte-desk-mods', key: 'sys' } as const, null)
 const todoTasks = atom({ plugin: 'khangte-desk-mods', key: 'tasks' } as const, [])
 // Also 🗓's: the timer the 할 일 row shows while it runs.
 const pomo = atom({ plugin: 'khangte-desk-mods', key: 'pomo' } as const, freshPomo(''))
-// The ready-made requests, edited in the control centre: one ⚡ button each. null: never set here.
+// The ready-made requests, edited in ⚙ 모즈 설정: one ⚡ button each. null: never set here.
 const quick = atom({ plugin: 'khangte-desk-mods', key: 'quick' } as const, null)
 const MAX_QUICK = 8
 const frame = atom({ plugin: 'khangte-desk-mods', key: 'frame' } as const, 0)
@@ -29,6 +29,7 @@ const hours = atom({ plugin: 'khangte-desk-mods', key: 'hours' } as const, DEFAU
 const tick = atom({ plugin: 'khangte-desk-mods', key: 'tick' } as const, 0)
 const settings = atom({ plugin: 'khangte-desk-mods', key: 'settings' } as const, DEFAULT_SETTINGS)
 const isShielded = atom({ plugin: 'khangte-desk-mods', key: 'isShielded' } as const, true) // starts on, every session
+const isCheering = atom({ plugin: 'khangte-desk-mods', key: 'isCheering' } as const, true) // the spinner's button; starts on, every session
 const PANE = 'mods-settings'
 const SCHEMES = [
   { id: 'dark', label: '어둡게' },
@@ -51,6 +52,7 @@ const STRUT = `<svg xmlns="http://www.w3.org/2000/svg" width="1" height="${ROW_P
 const HEIGHT = 18 // px: the dog (9 dots of 2px) exactly; no band picture is taller than a line
 const PX_PER_CELL = 8 // shortcut: assumes ~8px per cell at the desktop's mono footnote size; measure if bars look off
 const MIN_BAR = 3
+const FIELD_WIDTH = 22 // cells: a label, `09:00` or `180`, and the field's own frame
 
 type Cell = { icon: string; name: string; color: string; pct?: number; reset?: string; hasReset: boolean; extra?: string; noBar?: boolean }
 
@@ -137,7 +139,7 @@ async function saveSettings($: EngineInterface, fn: (s: Settings) => Settings) {
 // writing the state on every key redrew the pane mid-typing and dropped letters.
 let memoDraft: string | null = null
 let quickDraft = ''
-let hoursDraft: string | null = null
+const hoursDraft: { start?: string; end?: string } = {}
 let typingIn: string | undefined // the field holding the keyboard, while one does
 
 /** The memo as it stands: the draft being typed, else the saved one. */
@@ -561,22 +563,31 @@ export const register: Register = on => {
           [
             divider('set-line-h'),
             <Text key="hours-title" weight="bold">⏰ 근무 시간</Text>,
-            <r.Input
-              key="hours-input"
-              label="출근 퇴근"
-              placeholder="09:00 18:00"
-              submitLabel="적용"
-              value={hoursDraft ?? `${wh.start} ${wh.end}`}
-              onInput={v => {
-                hoursDraft = v
-              }}
-              onSubmit={v => {
-                hoursDraft = null
-                const h = parseHours(v)
-                if (!h) return $.ui.toast('예: 09:00 18:30 (24시간제, 퇴근이 출근보다 늦게)')
-                void saveHours($, h).then(() => $.ui.toast(`출근 ${h.start} · 퇴근 ${h.end}`))
-              }}
-            />,
+            <Box key="hours-fields" flexDirection="row" columnGap={2} alignItems="center" flexWrap="wrap">
+              {(['start', 'end'] as const).map(k => (
+                <Box key={`hours-${k}-box`} width={FIELD_WIDTH} flexShrink={0}>
+                  <r.Input
+                    key={`hours-${k}`}
+                    label={k === 'start' ? '출근' : '퇴근'}
+                    placeholder={k === 'start' ? '09:00' : '18:00'}
+                    submitLabel="적용"
+                    value={hoursDraft[k] ?? wh[k]}
+                    onInput={v => {
+                      hoursDraft[k] = v
+                    }}
+                    onSubmit={async v => {
+                      delete hoursDraft[k]
+                      // one field at a time: the other keeps its saved time, read now and not from this drawing
+                      const cur: Hours = (await read($, hours)) ?? DEFAULT_HOURS
+                      const h = parseHours(k === 'start' ? `${v.trim()} ${cur.end}` : `${cur.start} ${v.trim()}`)
+                      if (!h) return $.ui.toast('예: 09:00 (24시간제, 퇴근이 출근보다 늦게)')
+                      await saveHours($, h)
+                      $.ui.toast(`출근 ${h.start} · 퇴근 ${h.end}`)
+                    }}
+                  />
+                </Box>
+              ))}
+            </Box>,
           ]
         ) : (
           <Text dimColor>근무 시간은 /workhours로 바꿀 수 있어요.</Text>
@@ -592,9 +603,16 @@ export const register: Register = on => {
           ))}
         </Box>
         {divider('set-line-1')}
-        <Text weight="bold">그 밖의 모드</Text>
+        <Text weight="bold">기능</Text>
+        <Text dimColor>끄면 그 기능이 멈춰요.</Text>
         <Box flexDirection="column" rowGap={gap}>
-          {FEATURES.map(it => item(it.id, `${it.icon} ${it.name}`, cfg.enabled[it.id] !== false, [switchOf(it.id)]))}
+          {FEATURES.filter(it => it.group === 'feature').map(it => item(it.id, `${it.icon} ${it.name}`, cfg.enabled[it.id] !== false, [switchOf(it.id)]))}
+        </Box>
+        {divider('set-line-2')}
+        <Text weight="bold">단추 줄</Text>
+        <Text dimColor>입력창 위 맨 아래 줄에 패널을 여는 단추를 보일지 정해요. ⚙ 모즈 설정 단추는 늘 있어요.</Text>
+        <Box flexDirection="column" rowGap={gap}>
+          {FEATURES.filter(it => it.group === 'button').map(it => item(it.id, `${it.icon} ${it.name} 단추`, cfg.enabled[it.id] !== false, [switchOf(it.id)]))}
         </Box>
       </Box>
     )
@@ -715,9 +733,10 @@ export const register: Register = on => {
     const cols = e.props.bodyColumns
 
     const isMasked = (await read($, isShielded)) !== false
+    const isCheerOn = (await read($, isCheering)) !== false
     const work = planView(await read($, plan))
     const boxes = t // one box per task of today's /todo list, filled per done one
-    const nextChips = chips(await quickNow($)) // hidden until requests are set in the control centre
+    const nextChips = chips(await quickNow($)) // hidden until requests are set in ⚙ 모즈 설정
     const memoWaiting = (await read($, memoReady)) && (await read($, memo)).trim() !== ''
     const memoLit = memoWaiting && (await read($, memoBlink)) === 1
     // Desktop buttons stand taller than a line of text: rows that hold them get two lines, so nothing overlaps.
@@ -860,6 +879,11 @@ export const register: Register = on => {
     // The ⚙ button keeps the bottom-right corner, below every band.
     const gear = (
       <Box key="gear" flexDirection="row" columnGap={1} paddingX={1} flexWrap="wrap" justifyContent="flex-end">
+        {cfg.enabled.spinner === false ? null : (
+          <Button key="toggle-spinner" onPress={() => update($, isCheering, v => v === false)}>
+            {isCheerOn ? '💬 스피너 켜짐' : '🔇 스피너 꺼짐'}
+          </Button>
+        )}
         {cfg.enabled.shield === false ? null : (
           // the switch says the state itself: no band row of its own
           <Button key="toggle-shield" onPress={() => update($, isShielded, v => v === false)}>

@@ -42,7 +42,7 @@ declare module 'claude-code' {
   interface PluginState {
     'khangte-desk-mods': {
       // the band and its panes
-      usage: Usage | null; sys: Sys | null; frame: number; hours: Hours; tick: number; settings: Settings; isShielded: boolean
+      usage: Usage | null; sys: Sys | null; frame: number; hours: Hours; tick: number; settings: Settings; isShielded: boolean; isCheering: boolean
       plan: Plan | null; effort: string; model: string; memo: string; quick: string[] | null; memoReady: boolean; memoBlink: number
       // 🗓 오늘 할 일
       tasks: Task[]; tab: Tab; pomo: Pomo; minutes: Minutes; taskTick: number

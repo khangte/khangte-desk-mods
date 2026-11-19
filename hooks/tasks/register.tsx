@@ -18,6 +18,7 @@ const tab = atom({ plugin: 'khangte-desk-mods', key: 'tab' } as const, '오늘')
 const pomo = atom({ plugin: 'khangte-desk-mods', key: 'pomo' } as const, freshPomo(''))
 const minutes = atom({ plugin: 'khangte-desk-mods', key: 'minutes' } as const, DEFAULT_MINUTES)
 const tick = atom({ plugin: 'khangte-desk-mods', key: 'taskTick' } as const, 0)
+const FIELD_WIDTH = 22 // cells: a label, `180`, and the field's own frame
 // Owned by usage-band's ⚙ 모즈 설정; read here only for this mod's on/off switch.
 const settings = atom({ plugin: 'khangte-desk-mods', key: 'settings' } as const, DEFAULT_SETTINGS as Settings)
 
@@ -173,7 +174,7 @@ export const register: Register = on => {
       )
     const phase = isRest ? `휴식 ${m.rest}분` : `집중 ${m.focus}분`
     const tomatoes = tp.done === 0 ? '아직 없음' : '🍅'.repeat(Math.min(tp.done, 12)) + (tp.done > 12 ? ` ×${tp.done}` : '')
-    // A thin rule across the pane between its three parts: the timer, the to-dos, the ready-made requests.
+    // A thin rule across the pane between its parts: the greeting, the timer, the to-dos.
     const divider = (key: string) => (
       <Text key={key} color={LINE} wrap="truncate">{'─'.repeat(Math.max(10, e.props.bodyColumns - 2))}</Text>
     )
@@ -196,17 +197,19 @@ export const register: Register = on => {
         {'Input' in r ? (
           <Box key="pomo-minutes" flexDirection="row" columnGap={2} alignItems="center" flexWrap="wrap" justifyContent="center">
             {(['focus', 'rest'] as const).map(k => (
-              <r.Input
-                key={`pomo-${k}`}
-                label={k === 'focus' ? '집중(분)' : '휴식(분)'}
-                placeholder="1~180"
-                submitLabel="적용"
-                value={drafts[k] ?? String(m[k])}
-                onInput={v => {
-                  drafts[k] = v
-                }}
-                onSubmit={v => void applyMinute($, k, v)}
-              />
+              <Box key={`pomo-${k}-box`} width={FIELD_WIDTH} flexShrink={0}>
+                <r.Input
+                  key={`pomo-${k}`}
+                  label={k === 'focus' ? '집중(분)' : '휴식(분)'}
+                  placeholder="1~180"
+                  submitLabel="적용"
+                  value={drafts[k] ?? String(m[k])}
+                  onInput={v => {
+                    drafts[k] = v
+                  }}
+                  onSubmit={v => void applyMinute($, k, v)}
+                />
+              </Box>
             ))}
           </Box>
         ) : null}

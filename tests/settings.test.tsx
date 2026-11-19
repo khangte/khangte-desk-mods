@@ -16,7 +16,7 @@ const DEFAULT_ORDER = ['leave', 'todo', 'usage', 'sys', 'plan', 'chips']
 test('layout: defaults all on in one column, saved order kept, bad or old values fall back, new ids join at the end', () => {
   expect(Object.values(DEFAULT_SETTINGS.enabled).every(Boolean)).toBe(true)
   expect(DEFAULT_SETTINGS.order).toEqual(DEFAULT_ORDER)
-  expect(Object.keys(DEFAULT_SETTINGS.enabled)).toEqual([...DEFAULT_ORDER, 'shield', 'spinner', 'tasks', 'control'])
+  expect(Object.keys(DEFAULT_SETTINGS.enabled)).toEqual([...DEFAULT_ORDER, 'spinner', 'shield', 'tasks', 'control'])
 
   const saved = normalize({ version: 4, enabled: { sys: false, leave: 'no', dog: false }, order: ['chips', 'chips', 'nope', 7, 'dog', 'sys'] })
   expect(saved.enabled.sys).toBe(false)
@@ -76,8 +76,15 @@ for (const surface of ['desktop', 'terminal'] as const) {
     expect(await ui.find({ key: 'cell-0' })).toBeUndefined() // no 3x3 board any more
     const names = (await ui.findAll({ type: 'Text' })).map(t => t.text)
     expect(names.some(t => t.endsWith('⚡ 원터치 요청 버튼'))).toBe(true) // the names match the panes and buttons
-    expect(names).toContain('🗓 오늘 할 일')
-    expect(names).toContain('🎛 Claude 도구')
+    expect(names).toContain('🗓 오늘 할 일 단추')
+    expect(names).toContain('🎛 Claude 도구 단추')
+    // two groups: what a switch does is in its heading
+    const at = (t: string) => names.indexOf(t)
+    expect(at('기능')).toBeLessThan(at('💬 동기부여 스피너'))
+    expect(at('💬 동기부여 스피너')).toBeLessThan(at('🙈 모자이크 (이메일·전화번호)'))
+    expect(at('🙈 모자이크 (이메일·전화번호)')).toBeLessThan(at('단추 줄'))
+    expect(at('단추 줄')).toBeLessThan(at('🗓 오늘 할 일 단추'))
+    expect(names).not.toContain('그 밖의 모드')
     expect(names.some(t => /다음 할 일 단추 \(|오늘의 작업 \(/.test(t))).toBe(false)
     await ui.press({ key: 'sw-sys' })
     expect(saved().enabled.sys).toBe(false)
@@ -119,7 +126,8 @@ for (const surface of ['desktop', 'terminal'] as const) {
     expect(at(/다음 할 일/)).toBeLessThan(at(/퇴근/))
     expect(at(/퇴근/)).toBeLessThan(at(/SESSION/))
     const buttons = (await ui.findAll({ type: 'Button' })).map(b => b.key)
-    expect(buttons.at(-4)).toBe('toggle-shield') // the bottom row: 모자이크 switch…
+    expect(buttons.at(-5)).toBe('toggle-spinner') // the bottom row: 💬 스피너 switch…
+    expect(buttons.at(-4)).toBe('toggle-shield') // …모자이크 switch…
     expect(buttons.at(-3)).toBe('open-tasks') // …📋 오늘의 작업
     expect(buttons.at(-2)).toBe('open-control') // …🎛 제어센터
     expect(buttons).not.toContain('open-memo') // the 📝 메모 button is gone
@@ -146,17 +154,21 @@ for (const surface of ['desktop', 'terminal'] as const) {
     const toasts: string[] = []
     on('ui.toast', (_: unknown, e: { text: string }) => (toasts.push(e.text), { value: undefined }))
     let ui = await $.ui.mount({ ...PANE, surface })
-    expect((await ui.find({ key: 'hours-input' }))?.props.value).toBe('09:00 18:00')
-    await ui.input({ key: 'hours-input', text: '18:00 09:00' }) // the end before the start
+    expect((await ui.find({ key: 'hours-start' }))?.props.value).toBe('09:00')
+    expect((await ui.find({ key: 'hours-end' }))?.props.value).toBe('18:00')
+    await ui.input({ key: 'hours-end', text: '08:00' }) // the end before the start
     expect(kept.get('workhours')).toBeUndefined()
-    await ui.input({ key: 'hours-input', text: '8:30 17:30' })
+    await ui.input({ key: 'hours-start', text: '8:30' }) // one field alone: the end stays
+    expect(kept.get('workhours')).toBe('08:30 18:00')
+    await ui.input({ key: 'hours-end', text: '17:30' })
     expect(kept.get('workhours')).toBe('08:30 17:30')
     expect(mem.get('hours')?.value).toEqual({ start: '08:30', end: '17:30' })
-    expect(toasts).toEqual(['예: 09:00 18:30 (24시간제, 퇴근이 출근보다 늦게)', '출근 08:30 · 퇴근 17:30'])
+    expect(toasts).toEqual(['예: 09:00 (24시간제, 퇴근이 출근보다 늦게)', '출근 08:30 · 퇴근 18:00', '출근 08:30 · 퇴근 17:30'])
     for (const key of ['name-input', 'pomo-focus', 'pomo-rest']) expect(await ui.find({ key })).toBeUndefined()
     await ui.unmount()
     ui = await $.ui.mount({ ...PANE, surface })
-    expect((await ui.find({ key: 'hours-input' }))?.props.value).toBe('08:30 17:30')
+    expect((await ui.find({ key: 'hours-start' }))?.props.value).toBe('08:30')
+    expect((await ui.find({ key: 'hours-end' }))?.props.value).toBe('17:30')
     await ui.unmount()
   })
 }
