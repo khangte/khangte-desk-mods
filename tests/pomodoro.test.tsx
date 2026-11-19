@@ -188,3 +188,14 @@ test('after a long sleep the timer catches up with one notice, not one per misse
   expect(toasts).toHaveLength(1) // ~180 phases ended unseen; one notice
   expect((mem.get('pomo')?.value as Pomo).endsAt).toBeGreaterThan(T0) // caught up in one tick: nothing left for a second notice
 })
+
+test("two windows: one with fewer tomatoes today does not lower the saved count", async ($, on) => {
+  mock.clock(on, { now: T0 })
+  const { kept } = wire(on)
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true }) // this window: 0 today
+  kept.set('pomo-done', { day: DAY, done: 3 }) // another window finished three
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: 'pomo-toggle' }) // any timer write saves the count
+  await ui.unmount()
+  expect(kept.get('pomo-done')).toEqual({ day: DAY, done: 3 })
+})

@@ -41,7 +41,10 @@ async function setPomo($: EngineInterface, fn: (p: Pomo, now: number, m: Minutes
   const m = await read($, minutes)
   let out = freshPomo(dayOf(now), m)
   await update($, pomo, p => (out = fn(rollDay(p, dayOf(now)), now, m)))
-  await $.store.set('pomo-done', { day: out.day, done: out.done })
+  // every window runs its own timer: keep the larger count of the day, so a window with fewer cannot lower it
+  const kept = (await $.store.get('pomo-done')) as { day?: unknown; done?: unknown } | undefined
+  const before = kept?.day === out.day && typeof kept.done === 'number' ? kept.done : 0
+  await $.store.set('pomo-done', { day: out.day, done: Math.max(before, out.done) })
   return out
 }
 
