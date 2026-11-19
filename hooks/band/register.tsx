@@ -159,7 +159,7 @@ async function refresh($: EngineInterface) {
   await update($, usage, () => toUsage(u))
 }
 
-// Read-only local query, nothing leaves the machine. shortcut: Windows PowerShell/CIM only, add a branch for macOS/Linux if needed.
+// Read-only local query, nothing leaves the machine. shortcut: Windows PowerShell/CIM only (WSL reaches it via interop), add a branch for macOS/native Linux if needed.
 const PS =
   '$o=Get-CimInstance Win32_OperatingSystem;$b=Get-CimInstance Win32_Battery|Select-Object -First 1;' +
   '[pscustomobject]@{cpu=(Get-CimInstance Win32_Processor|Measure-Object LoadPercentage -Average).Average;' +
@@ -276,7 +276,8 @@ async function pollSys($: EngineInterface) {
   if (isPolling) return
   isPolling = true
   try {
-    const r = await $.process.run(['powershell', '-NoProfile', '-Command', PS], { timeoutMs: 4000 })
+    // '.exe' so WSL finds it through Windows interop; plain Windows resolves it the same.
+    const r = await $.process.run(['powershell.exe', '-NoProfile', '-Command', PS], { timeoutMs: 4000 })
     await update($, sys, () => parseSys(r.exitCode === 0 ? r.stdout : ''))
   } catch {
     await update($, sys, () => ({}))
