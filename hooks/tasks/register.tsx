@@ -9,14 +9,13 @@ import {
   DEFAULT_MINUTES, TOMATO_SIZE, advance, clock, freshPomo, parseMinutes, pause, progress, remaining, reset, rollDay, skip, start, tomatoSvg,
 } from './pomodoro'
 
-import { TABS, cleanTasks, dayOf, listFor, pairs, parseTodo, tabOf, thinBar, todayProgress, whenOf } from './tasks'
+import { TABS, cleanTasks, dayOf, greeting, listFor, pairs, parseTodo, tabOf, thinBar, todayProgress, whenOf } from './tasks'
 import { DEFAULT_SETTINGS } from '../band/layout'
 import { C, usePalette } from '../band/control'
 
 const tasks = atom({ plugin: 'khangte-dashboard-mods', key: 'tasks' } as const, [])
 const tab = atom({ plugin: 'khangte-dashboard-mods', key: 'tab' } as const, '오늘')
 const name = atom({ plugin: 'khangte-dashboard-mods', key: 'name' } as const, '') // set with /todo-name; a shared copy carries no one's name
-// The 다음 할 일 buttons above the prompt read this list (usage-band draws them).
 const pomo = atom({ plugin: 'khangte-dashboard-mods', key: 'pomo' } as const, freshPomo(''))
 const minutes = atom({ plugin: 'khangte-dashboard-mods', key: 'minutes' } as const, DEFAULT_MINUTES)
 const tick = atom({ plugin: 'khangte-dashboard-mods', key: 'taskTick' } as const, 0)
@@ -49,7 +48,9 @@ async function pomoTick($: EngineInterface) {
   const m = await read($, minutes)
   const { events } = advance(rollDay(p, dayOf(now)), now, m)
   if (events.length > 0 || p.day !== dayOf(now)) await setPomo($, (q, n, mm) => advance(q, n, mm).pomo)
-  for (const ev of events) announce($, ev === 'focus-done' ? `🔴 집중 ${m.focus}분 끝! ${m.rest}분 쉬어요` : `🟢 휴식 끝! 다시 ${m.focus}분 집중해요`)
+  // only the latest phase change: after a long sleep the timer may have rolled over dozens of phases
+  const last = events.at(-1)
+  if (last) announce($, last === 'focus-done' ? `🔴 집중 ${m.focus}분 끝! ${m.rest}분 쉬어요` : `🟢 휴식 끝! 다시 ${m.focus}분 집중해요`)
   await update($, tick, () => now)
 }
 
@@ -261,7 +262,7 @@ export const register: Register = on => {
 
     return (
       <Box flexDirection="column" rowGap={gap} paddingX={1} paddingY={1}>
-        <Text size="title" weight="bold" color={TEXT}>{who ? `좋은 아침, ${who}님` : '좋은 아침이에요'}</Text>
+        <Text size="title" weight="bold" color={TEXT}>{greeting(new Date(nowMs).getHours(), who)}</Text>
         <Text color={ACCENT}>{`오늘 끝낼 일 ${todayLeft}개`}</Text>
         {divider('line-0')}
         <Text weight="bold" color={TEXT}>🍅 집중 타이머</Text>

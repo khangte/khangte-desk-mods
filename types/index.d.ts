@@ -10,7 +10,6 @@ export type Usage = {
 /** This computer's state; a value that could not be read is left out. */
 export type Sys = { cpu?: number; ram?: number; ramUsedGb?: number; ramTotalGb?: number; battery?: number }
 
-/** Checklist progress: `[x]` count over all `[ ]`/`[x]` items. */
 /** A /todo task as today-tasks keeps it; only what the bands read. */
 export type TodoTask = { title: string; day: string; due?: string; done: boolean }
 

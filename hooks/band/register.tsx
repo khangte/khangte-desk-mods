@@ -17,8 +17,7 @@ const usage = atom({ plugin: 'khangte-dashboard-mods', key: 'usage' } as const, 
 const sys = atom({ plugin: 'khangte-dashboard-mods', key: 'sys' } as const, null)
 // Owned by today-tasks (/todo); read here for the box gauge and the next-step chips.
 const todoTasks = atom({ plugin: 'khangte-dashboard-mods', key: 'tasks' } as const, [])
-// The ready-made requests set in the 오늘의 작업 pane: one 다음 할 일 button each.
-// The ready-made requests, edited in the control centre: one 다음 할 일 button each. null: never set here.
+// The ready-made requests, edited in the control centre: one ⚡ button each. null: never set here.
 const quick = atom({ plugin: 'khangte-dashboard-mods', key: 'quick' } as const, null)
 const MAX_QUICK = 8
 const frame = atom({ plugin: 'khangte-dashboard-mods', key: 'frame' } as const, 0)
@@ -111,10 +110,8 @@ export const cleanQuick = (raw: unknown): string[] =>
         .slice(0, MAX_QUICK)
     : []
 
-/** The list in use: this mod's own once edited here, else the one 오늘의 작업 kept before the move. */
 async function quickNow($: EngineInterface) {
-  const own = await read($, quick)
-  return own ?? []
+  return (await read($, quick)) ?? []
 }
 
 async function saveQuick($: EngineInterface, fn: (list: string[]) => string[]) {
@@ -272,14 +269,20 @@ export const chips = (list: readonly string[] | null | undefined = []) =>
 let isWalking = false // set while drawing: the workday is under way
 
 let isPolling = false
+let sysFailures = 0 // in a row; after MAX_SYS_FAILURES the machine has no PowerShell (macOS, Linux, WSL without interop)
+const MAX_SYS_FAILURES = 3
 async function pollSys($: EngineInterface) {
-  if (isPolling) return
+  if (isPolling || sysFailures >= MAX_SYS_FAILURES) return
+  if (normalize(await read($, settings)).enabled.sys === false) return // no PowerShell spawned for a hidden row
   isPolling = true
   try {
     // '.exe' so WSL finds it through Windows interop; plain Windows resolves it the same.
     const r = await $.process.run(['powershell.exe', '-NoProfile', '-Command', PS], { timeoutMs: 4000 })
-    await update($, sys, () => parseSys(r.exitCode === 0 ? r.stdout : ''))
+    const s = parseSys(r.exitCode === 0 ? r.stdout : '')
+    sysFailures = Object.values(s).some(v => v !== undefined) ? 0 : sysFailures + 1
+    await update($, sys, () => s)
   } catch {
+    sysFailures++
     await update($, sys, () => ({}))
   } finally {
     isPolling = false
@@ -293,9 +296,9 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const result = await tasksSessionStart($, e, next)
     await refresh($)
-    void pollSys($)
     const savedSettings = await $.store.get(STORE_KEY)
     await update($, settings, () => normalize(savedSettings))
+    void pollSys($) // after the settings: a switched-off row spawns nothing
     await $.command.register({ name: 'mods-settings', description: '⚙ 모즈 설정 패널 열기' })
     await $.command.register({ name: 'control', description: '🎛 Claude 도구 패널 열기' })
     const savedQuick = await $.store.get('quick')
@@ -720,7 +723,8 @@ export const register: Register = on => {
     const isTextOnly = e.surface === 'terminal' || !('Svg' in r)
     const dayRatio = leave.meter ? leave.meter.pct / 100 : leave.kind === 'cheer' || leave.kind === 'over' ? 1 : 0
     const hasTrack = leave.kind !== 'rest'
-    isWalking = leave.meter !== undefined
+    const list = visible(cfg)
+    isWalking = leave.meter !== undefined && list.includes('leave') // a hidden dog needs no 400ms redraws
     const trail = isUrgent ? C.orange : C.trail
     const track = () => {
       if (e.surface === 'terminal' || !('Svg' in r)) {
@@ -780,7 +784,7 @@ export const register: Register = on => {
             {isTextOnly ? (
               <Text mono wrap="truncate">
                 {boxGaugeText(boxes.done, boxes.total, gaugeCells).map((b, i) => (
-                  <Text color={b.isDone ? C.teal : C.boxEmpty}>{(i > 0 ? ' ' : '') + b.text}</Text>
+                  <Text key={`box-${i}`} color={b.isDone ? C.teal : C.boxEmpty}>{(i > 0 ? ' ' : '') + b.text}</Text>
                 ))}
               </Text>
             ) : (
@@ -834,7 +838,8 @@ export const register: Register = on => {
         </Box>
       ),
       usage: row(cells, 'usage'),
-      sys: row(sysCells, 'sys'),
+      // hidden until something was read: no row of dashes where PowerShell is missing
+      sys: Object.values(s).some(v => v !== undefined) ? row(sysCells, 'sys') : null,
       leave: (
         <Box key="leave" flexDirection="row" flexWrap="wrap" alignItems="center" columnGap={1} backgroundColor={C.navy} paddingX={1}>
           {tag('🏃', '퇴근')}
@@ -844,7 +849,6 @@ export const register: Register = on => {
       ),
     }
 
-    const list = visible(cfg)
     // The ⚙ button keeps the bottom-right corner, below every band.
     const gear = (
       <Box key="gear" flexDirection="row" columnGap={1} paddingX={1} flexWrap="wrap" justifyContent="flex-end">

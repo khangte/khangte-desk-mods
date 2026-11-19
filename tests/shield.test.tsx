@@ -101,7 +101,7 @@ for (const surface of ['desktop', 'terminal'] as const) {
 
 for (const surface of ['desktop', 'terminal'] as const) {
   test(`band rows take one line; only button rows take two on desktop (${surface})`, async ($, on) => {
-    wire(on)
+    wire(on).set('sys', { value: { cpu: 10 }, version: 1 }) // the 컴퓨터 상태 row shows once something was read
     const ui = await $.ui.mount({ ...BAND, surface })
     const slots = (await ui.findAll({ type: 'Box' })).filter(b => b.key?.startsWith('slot-'))
     expect(slots.length).toBeGreaterThanOrEqual(4) // 퇴근, 사용량, 컴퓨터 상태, 가림 at least

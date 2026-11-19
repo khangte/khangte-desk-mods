@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 import type { Task } from '../types'
 
-import { cleanTasks, dayOf, listFor, pairs, parseTodo, tabOf, todayProgress, whenOf } from '../hooks/tasks/tasks'
+import { cleanTasks, dayOf, greeting, listFor, pairs, parseTodo, tabOf, todayProgress, whenOf } from '../hooks/tasks/tasks'
 
 const NOW = new Date(2026, 10, 6, 9, 0, 0).getTime() // Fri 2026-11-06 09:00
 const TODAY = '2026-11-06'
@@ -132,4 +132,11 @@ test('🗓 오늘 할 일: greeting, then 🍅 집중 타이머, then ☑ 할 �
   expect(at('다음 할 일 단추')).toBe(-1)
   expect(await ui.find({ key: 'quick-add' })).toBeUndefined()
   await ui.unmount()
+})
+
+test('greeting follows the hour: 아침 5-11, 오후 12-17, 저녁 otherwise', () => {
+  expect(greeting(9, '')).toBe('좋은 아침이에요')
+  expect(greeting(12, '지수')).toBe('좋은 오후, 지수님')
+  expect(greeting(18, '')).toBe('좋은 저녁이에요')
+  expect(greeting(2, '')).toBe('좋은 저녁이에요')
 })
