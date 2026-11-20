@@ -76,16 +76,16 @@ for (const surface of ['desktop', 'terminal'] as const) {
     expect(await ui.find({ key: 'cell-0' })).toBeUndefined() // no 3x3 board any more
     const names = (await ui.findAll({ type: 'Text' })).map(t => t.text)
     expect(names.some(t => t.endsWith('⚡ 원터치 요청 버튼'))).toBe(true) // the names match the panes and buttons
-    expect(names).toContain('🗓 오늘 할 일 단추')
-    expect(names).toContain('🎛 Claude 도구 단추')
+    expect(names).toContain('🗓 오늘 할 일 버튼')
+    expect(names).toContain('🎛 Claude 도구 버튼')
     // two groups: what a switch does is in its heading
     const at = (t: string) => names.indexOf(t)
     expect(at('기능')).toBeLessThan(at('💬 동기부여 스피너'))
     expect(at('💬 동기부여 스피너')).toBeLessThan(at('🙈 모자이크 (이메일·전화번호)'))
-    expect(at('🙈 모자이크 (이메일·전화번호)')).toBeLessThan(at('단추 줄'))
-    expect(at('단추 줄')).toBeLessThan(at('🗓 오늘 할 일 단추'))
+    expect(at('🙈 모자이크 (이메일·전화번호)')).toBeLessThan(at('버튼 줄'))
+    expect(at('버튼 줄')).toBeLessThan(at('🗓 오늘 할 일 버튼'))
     expect(names).not.toContain('그 밖의 모드')
-    expect(names.some(t => /다음 할 일 단추 \(|오늘의 작업 \(/.test(t))).toBe(false)
+    expect(names.some(t => /다음 할 일 버튼 \(|오늘의 작업 \(/.test(t))).toBe(false)
     await ui.press({ key: 'sw-sys' })
     expect(saved().enabled.sys).toBe(false)
     await ui.unmount()

@@ -61,7 +61,7 @@ for (const surface of ['desktop', 'terminal'] as const) {
     const pane = () => $.ui.mount({ ...SETTINGS, surface })
     let ui = await pane()
     const set = (await ui.findAll({ type: 'Text' })).map(t => t.text)
-    expect(set).toContain('여기 적은 요청이 입력창 위 ⚡ 단추가 돼요. 누르면 입력창에 채워지고, 보내는 건 직접 해야 돼요.')
+    expect(set).toContain('여기 적은 요청이 입력창 위 ⚡ 버튼이 돼요. 누르면 입력창에 채워지고, 보내는 건 직접 해야 돼요.')
     expect((await ui.find({ key: 'quick-add' }))?.props.placeholder).toBe('새 요청을 적고 Enter (예: 이번 수정건 재검토해)')
     expect(set).toContain('1. /ponytail-audit')
 

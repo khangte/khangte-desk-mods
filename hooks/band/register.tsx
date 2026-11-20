@@ -517,7 +517,7 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column" rowGap={gap} paddingX={1}>
         <Text weight="bold">입력창 위 띠</Text>
-        <Text dimColor>위에서 아래로 그려지는 순서예요. ▲▼로 옮기고, 오른쪽 단추로 켜고 끕니다.</Text>
+        <Text dimColor>위에서 아래로 그려지는 순서예요. ▲▼로 옮기고, 오른쪽 버튼로 켜고 끕니다.</Text>
         <Box flexDirection="column" rowGap={gap}>
           {cfg.order.map((id, i) => {
             const band = nameOf(id)
@@ -531,7 +531,7 @@ export const register: Register = on => {
         </Box>
         {divider('set-line-q')}
         <Text weight="bold">⚡ 원터치 요청 버튼</Text>
-        <Text dimColor>여기 적은 요청이 입력창 위 ⚡ 단추가 돼요. 누르면 입력창에 채워지고, 보내는 건 직접 해야 돼요.</Text>
+        <Text dimColor>여기 적은 요청이 입력창 위 ⚡ 버튼이 돼요. 누르면 입력창에 채워지고, 보내는 건 직접 해야 돼요.</Text>
         {nexts.length === 0 ? (
           <Text dimColor>아직 없어요. 예: 이번 수정건 재검토해</Text>
         ) : (
@@ -609,10 +609,10 @@ export const register: Register = on => {
           {FEATURES.filter(it => it.group === 'feature').map(it => item(it.id, `${it.icon} ${it.name}`, cfg.enabled[it.id] !== false, [switchOf(it.id)]))}
         </Box>
         {divider('set-line-2')}
-        <Text weight="bold">단추 줄</Text>
-        <Text dimColor>입력창 위 맨 아래 줄에 패널을 여는 단추를 보일지 정해요. ⚙ 모즈 설정 단추는 늘 있어요.</Text>
+        <Text weight="bold">버튼 줄</Text>
+        <Text dimColor>입력창 위 맨 아래 줄에 패널을 여는 버튼을 보일지 정해요. ⚙ 모즈 설정 버튼은 늘 있어요.</Text>
         <Box flexDirection="column" rowGap={gap}>
-          {FEATURES.filter(it => it.group === 'button').map(it => item(it.id, `${it.icon} ${it.name} 단추`, cfg.enabled[it.id] !== false, [switchOf(it.id)]))}
+          {FEATURES.filter(it => it.group === 'button').map(it => item(it.id, `${it.icon} ${it.name} 버튼`, cfg.enabled[it.id] !== false, [switchOf(it.id)]))}
         </Box>
       </Box>
     )
@@ -896,11 +896,11 @@ export const register: Register = on => {
           </Button>
         )}
         {cfg.enabled.control === false ? null : (
-          <Button key="open-control" onPress={() => void showPane($, CONTROL, CONTROL_TITLE)}>
+          <Button key="open-control" onPress={() => showPane($, CONTROL, CONTROL_TITLE)}>
             🎛 Claude 도구
           </Button>
         )}
-        <Button key="open-settings" onPress={() => void showPane($, PANE, '⚙ 모즈 설정')}>
+        <Button key="open-settings" onPress={() => showPane($, PANE, '⚙ 모즈 설정')}>
           ⚙ 모즈 설정
         </Button>
       </Box>

@@ -132,7 +132,7 @@ test('🗓 오늘 할 일: greeting, then 🍅 집중 타이머, then ☑ 할 �
   const order = [at('좋은 아침'), rules[0]!, at('🍅 집중 타이머'), at('25:00'), rules[1]!, at('☑ 할 일 목록')]
   expect(order.every(i => i >= 0)).toBe(true)
   expect([...order].sort((x, y) => x - y)).toEqual(order)
-  expect(at('다음 할 일 단추')).toBe(-1)
+  expect(at('다음 할 일 버튼')).toBe(-1)
   expect(await ui.find({ key: 'quick-add' })).toBeUndefined()
   await ui.unmount()
 })
