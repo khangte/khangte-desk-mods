@@ -57,6 +57,8 @@ for (const surface of ['desktop', 'terminal'] as const) {
     expect(order.every(i => i >= 0)).toBe(true)
     expect([...order].sort((x, y) => x - y)).toEqual(order)
     expect(await control.find({ key: 'memo-input' })).toBeDefined()
+    // the terminal draws a field with no frame: brackets mark it; the desktop's has its own
+    expect(texts.filter(t => t === '[' || t === ']')).toEqual(surface === 'terminal' ? ['[', ']'] : [])
     expect((await control.findAll({ type: 'Input' })).some((b: { key?: string }) => b.key?.startsWith('quick-add-'))).toBe(false)
     await control.unmount()
 

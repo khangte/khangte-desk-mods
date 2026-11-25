@@ -1,4 +1,4 @@
-import { iconless, showPane } from '../panes'
+import { field, iconless, showPane } from '../panes'
 import type { Settings } from '../../types'
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
@@ -205,17 +205,17 @@ export const register: Register = on => {
           <Box key="pomo-minutes" flexDirection="row" columnGap={2} alignItems="center" flexWrap="wrap" justifyContent="center">
             {(['focus', 'rest'] as const).map(k => (
               <Box key={`pomo-${k}-box`} width={FIELD_WIDTH} flexShrink={0}>
-                <r.Input
-                  key={`pomo-${k}`}
-                  label={k === 'focus' ? '집중(분)' : '휴식(분)'}
-                  placeholder="1~180"
-                  submitLabel="적용"
-                  value={drafts[k] ?? String(m[k])}
-                  onInput={v => {
+                {field(r, isTerminal, {
+                  key: `pomo-${k}`,
+                  label: k === 'focus' ? '집중(분)' : '휴식(분)',
+                  placeholder: '1~180',
+                  submitLabel: '적용',
+                  value: drafts[k] ?? String(m[k]),
+                  onInput: v => {
                     drafts[k] = v
-                  }}
-                  onSubmit={v => void applyMinute($, k, v)}
-                />
+                  },
+                  onSubmit: v => void applyMinute($, k, v),
+                })}
               </Box>
             ))}
           </Box>
@@ -287,23 +287,23 @@ export const register: Register = on => {
         ) : null}
 
         {'Input' in r ? (
-          <r.Input
-            key={`todo-add-${todoAdds}`}
-            rows={3} // two thirds of 🎛's 다음 요청 메모 (4 rows), rounded to a whole row
-            placeholder="OO 기능 수정"
-            submitLabel="추가"
-            value={todoDraft}
-            onInput={v => {
+          field(r, isTerminal, {
+            key: `todo-add-${todoAdds}`,
+            rows: 3, // two thirds of 🎛's 다음 요청 메모 (4 rows), rounded to a whole row
+            placeholder: 'OO 기능 수정',
+            submitLabel: '추가',
+            value: todoDraft,
+            onInput: v => {
               todoDraft = v // kept here, not in the state: the pane redraws every second
-            }}
-            onSubmit={async v => {
+            },
+            onSubmit: async v => {
               const res = await addTask($, v)
               $.ui.toast(res.text)
               if (!res.isAdded) return // the text stays, to fix
               todoDraft = ''
               todoAdds += 1
-            }}
-          />
+            },
+          })
         ) : null}
         <Box {...line} flexDirection="row" alignItems="center" justifyContent="space-between">
           <Box flexDirection="row" columnGap={1} alignItems="center">

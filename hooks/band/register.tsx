@@ -1,4 +1,4 @@
-import { iconless, showPane } from '../panes'
+import { field, iconless, showPane } from '../panes'
 import { PANE as TASKS_PANE, TITLE as TASKS_TITLE } from '../tasks/register'
 // a plugin gets one hook per event: the other parts' session.start, tool.call and turn.complete run from here
 import { spinnerToolCall, spinnerTurnComplete } from '../spinner/register'
@@ -461,18 +461,18 @@ export const register: Register = on => {
             <Text weight="bold" color={C.deep}>{ic(MEMO_TITLE)}</Text>
             <Text size="footnote" color={C.mid}>Claude가 일하는 동안 다음에 시킬 일을 적어 두세요. 적는 대로 저장돼요.</Text>
             {'Input' in r ? (
-              <r.Input
-                key="memo-input"
-                rows={4}
-                value={note}
-                placeholder="방금 기획한 기능을 추가해줘"
-                submitLabel="저장"
-                onInput={v => {
+              field(r, isTerminal, {
+                key: 'memo-input',
+                rows: 4,
+                value: note,
+                placeholder: '방금 기획한 기능을 추가해줘',
+                submitLabel: '저장',
+                onInput: v => {
                   memoDraft = v // kept here and in the store, not in the state: no redraw while typing
                   void $.store.set('memo', v)
-                }}
-                onSubmit={v => void saveMemo($, v)}
-              />
+                },
+                onSubmit: v => void saveMemo($, v),
+              })
             ) : (
               <Text color={C.deep}>{note || '(이 화면에서는 적을 수 없어요)'}</Text>
             )}
@@ -565,16 +565,16 @@ export const register: Register = on => {
             <Box key="hours-fields" flexDirection="row" columnGap={2} alignItems="center" flexWrap="wrap">
               {(['start', 'end'] as const).map(k => (
                 <Box key={`hours-${k}-box`} width={FIELD_WIDTH} flexShrink={0}>
-                  <r.Input
-                    key={`hours-${k}`}
-                    label={k === 'start' ? '출근' : '퇴근'}
-                    placeholder={k === 'start' ? '09:00' : '18:00'}
-                    submitLabel="적용"
-                    value={hoursDraft[k] ?? wh[k]}
-                    onInput={v => {
+                  {field(r, isTerminal, {
+                    key: `hours-${k}`,
+                    label: k === 'start' ? '출근' : '퇴근',
+                    placeholder: k === 'start' ? '09:00' : '18:00',
+                    submitLabel: '적용',
+                    value: hoursDraft[k] ?? wh[k],
+                    onInput: v => {
                       hoursDraft[k] = v
-                    }}
-                    onSubmit={async v => {
+                    },
+                    onSubmit: async v => {
                       delete hoursDraft[k]
                       // one field at a time: the other keeps its saved time, read now and not from this drawing
                       const cur: Hours = (await read($, hours)) ?? DEFAULT_HOURS
@@ -582,8 +582,8 @@ export const register: Register = on => {
                       if (!h) return $.ui.toast('예: 09:00 (24시간제, 퇴근이 출근보다 늦게)')
                       await saveHours($, h)
                       $.ui.toast(`출근 ${h.start} · 퇴근 ${h.end}`)
-                    }}
-                  />
+                    },
+                  })}
                 </Box>
               ))}
             </Box>,
@@ -611,20 +611,20 @@ export const register: Register = on => {
           </Box>
         )}
         {'Input' in r && nexts.length < MAX_QUICK ? (
-          <r.Input
-            key={`quick-add-${quickAdds}`}
-            placeholder="다음 진행해"
-            submitLabel="추가"
-            value={quickDraft}
-            onInput={v => {
+          field(r, isTerminal, {
+            key: `quick-add-${quickAdds}`,
+            placeholder: '다음 진행해',
+            submitLabel: '추가',
+            value: quickDraft,
+            onInput: v => {
               quickDraft = v // kept here, not in the state: no redraw while typing
-            }}
-            onSubmit={v => {
+            },
+            onSubmit: v => {
               quickDraft = ''
               quickAdds += 1
               void saveQuick($, l => [...l, v])
-            }}
-          />
+            },
+          })
         ) : null}
         {divider('set-line-1')}
         <Text weight="bold">기능</Text>
