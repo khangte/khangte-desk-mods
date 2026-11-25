@@ -94,7 +94,8 @@ test('system row shows, one row each at narrow width', async ($, on) => {
     expect(all).toContain('CPU [')
     expect(all).toContain('23%')
     expect(all).toContain('11.2/16GB')
-    expect(all).toContain('BAT [') // a bar like the others, its % beside it
+    expect(all).toContain(surface === 'terminal' ? 'BAT [' : '🔋 [') // a bar like the others, its % beside it; 🔋 off the terminal
+    if (surface === 'desktop') expect(all).not.toContain('BAT [')
     expect(all).toContain(' 82%')
     await ui.unmount()
   }

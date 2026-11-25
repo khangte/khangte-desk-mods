@@ -53,7 +53,7 @@ const PX_PER_CELL = 8 // shortcut: assumes ~8px per cell at the desktop's mono f
 const MIN_BAR = 3
 const FIELD_WIDTH = 22 // cells: a label, `09:00` or `180`, and the field's own frame
 
-type Cell = { name: string; color: string; pct?: number; reset?: string; hasReset: boolean; extra?: string; isLowBad?: boolean }
+type Cell = { name: string; icon?: string; color: string; pct?: number; reset?: string; hasReset: boolean; extra?: string; isLowBad?: boolean } // icon: drawn for the name off the terminal; the name stays the key and alt
 
 /** Cells every row's label takes, padded: the bands' contents start in one column. */
 export const LABEL = 10
@@ -517,7 +517,7 @@ export const register: Register = on => {
 
     return (
       <Box flexDirection="column" rowGap={gap} paddingX={1}>
-        <Text weight="bold">입력창 위 띠</Text>
+        <Text weight="bold">입력창 위 밴드</Text>
         <Text dimColor>위에서 아래로 그려지는 순서예요. ▲▼로 옮기고, 오른쪽 버튼으로 켜고 끕니다.</Text>
         <Box flexDirection="column" rowGap={gap}>
           {cfg.order.map((id, i) => {
@@ -716,7 +716,7 @@ export const register: Register = on => {
             <Box key={c.name} flexDirection="row" flexWrap="nowrap" alignItems="center" flexShrink={0}>
               {i > 0 ? <Text mono size="footnote" color={C.gray} wrap="truncate">{' │ '}</Text> : null}
               {/* a bare figure needs its name too: no bar, no bracket */}
-              <Text mono size="footnote" weight="bold" color={C.name} wrap="truncate">{`${c.name} [`}</Text>
+              <Text mono size="footnote" weight="bold" color={C.name} wrap="truncate">{`${e.surface === 'terminal' ? c.name : (c.icon ?? c.name)} [`}</Text>
               {drawBar(c, color)}
               <Text mono size="footnote" weight="bold" color={C.name} wrap="truncate">{']'}</Text>
               <Text mono tabular size="footnote" color={C.gray} wrap="truncate">
@@ -734,7 +734,7 @@ export const register: Register = on => {
     const sysCells: Cell[] = [
       { name: 'CPU', color: C.teal, pct: s.cpu, hasReset: false },
       { name: 'RAM', color: C.green, pct: s.ram, hasReset: false, extra: ram },
-      { name: 'BAT', color: C.cyan, pct: s.battery, hasReset: false, isLowBad: true },
+      { name: 'BAT', icon: '🔋', color: C.cyan, pct: s.battery, hasReset: false, isLowBad: true },
     ]
 
     const leave = leaveView(now, wh)
