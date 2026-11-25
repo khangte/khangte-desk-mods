@@ -145,7 +145,24 @@ test('polls every 10 seconds without a model call; backs off while PowerShell fa
   expect(runs).toBe(3) // ...and every tick polls again
 })
 
-const DOG_PX = ['#B07A42', '#6E4123', '#1B1B1B', '#E2C08E']
+test('switched-off parts ask nothing: no usage, model or PowerShell call', async ($, on) => {
+  const off = { version: 4, enabled: { usage: false, control: false, sys: false } }
+  mock.store(on, { 'mods-settings': off })
+  on('command.register', () => ({ value: { command: 'x' } }))
+  on('state.get', (_, e) => ({ value: { value: e.key === 'settings' ? off : undefined, version: 0 } }))
+  on('state.set', () => ({ value: { isSet: true, version: 1 } }))
+  const time = mock.clock(on, { now: NOW })
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  const calls: string[] = []
+  on('session.usage', () => (calls.push('usage'), { value: { startedAt: 0, context: { window: 1 }, rateLimits: [] } }))
+  on('session.model', () => (calls.push('model'), { value: 'claude-opus-5-5' }))
+  on('process.run', () => (calls.push('ps'), { value: { exitCode: 0, stdout: '{"cpu":1}', stderr: '' } }))
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await time.advance(30_000)
+  expect(calls).toEqual([])
+})
+
+const DOG_PX =['#B07A42', '#6E4123', '#1B1B1B', '#E2C08E']
 const rectsOf = (svg: string) => [...svg.matchAll(/<rect x="(-?\d+)" y="(\d+)" width="(\d+)" height="2" fill="(#\w+)"/g)]
 const dogOnly = (svg: string) => rectsOf(svg).filter(m => !['#60a5fa', '#aab3c5', '#fb923c'].includes(m[4]!)) // not the track
 

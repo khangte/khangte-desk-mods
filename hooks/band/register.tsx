@@ -166,9 +166,17 @@ async function saveHours($: EngineInterface, h: Hours) {
   await update($, hours, () => h)
 }
 
+/** Asks the session only for what a switched-on part shows: 사용량 (the band row or 🎛's rings) and 🎛's model buttons. */
 async function refresh($: EngineInterface) {
-  const u = await $.session.usage()
-  await update($, usage, () => toUsage(u))
+  const on = normalize(await read($, settings)).enabled
+  if (on.usage !== false || on.control !== false) {
+    const u = await $.session.usage()
+    await update($, usage, () => toUsage(u))
+  }
+  if (on.control !== false) {
+    const m = await $.session.model().catch(() => '')
+    await update($, model, () => m) // a /model typed by hand shows on the buttons too
+  }
 }
 
 // Read-only local query, nothing leaves the machine. shortcut: Windows PowerShell/CIM only (WSL reaches it via interop), add a branch for macOS/native Linux if needed.
@@ -303,10 +311,10 @@ let isIdle = true
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const result = await tasksSessionStart($, e, next)
-    await refresh($)
     const savedSettings = await $.store.get(STORE_KEY)
     await update($, settings, () => normalize(savedSettings))
-    void pollSys($) // after the settings: a switched-off row spawns nothing
+    await refresh($) // after the settings: a switched-off part asks nothing
+    void pollSys($)
     await $.command.register({ name: 'mods-settings', description: '⚙ 모즈 설정 패널 열기' })
     await $.command.register({ name: 'control', description: '🎛 Claude 도구 패널 열기' })
     const savedQuick = await $.store.get('quick')
@@ -318,8 +326,6 @@ export const register: Register = on => {
     $.clock.every(500, async () => {
       if (typingIn === undefined && (await read($, memoReady))) await update($, memoBlink, b => 1 - b) // no pulse while typing
     })
-    const current = await $.session.model().catch(() => '')
-    await update($, model, () => current)
     const saved = await $.store.get('workhours')
     const parsed = typeof saved === 'string' ? parseHours(saved) : undefined
     if (parsed) await update($, hours, () => parsed)
@@ -670,8 +676,6 @@ export const register: Register = on => {
   on('turn.complete', async ($, e, next) => {
     const result = await spinnerTurnComplete($, e, next)
     if (e.agentId === undefined) isIdle = true
-    const m = await $.session.model().catch(() => '')
-    await update($, model, () => m) // a /model typed by hand shows on the buttons too
     // the main answer is in (not a subagent's): the note's turn
     if (e.agentId === undefined && (await memoText($)).trim() !== '') await update($, memoReady, () => true)
     await refresh($)
