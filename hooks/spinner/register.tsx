@@ -26,8 +26,6 @@ export const PHRASES = [
 /** A new phrase every 3 seconds, cycling through all ten, so none repeats back to back. */
 export const phraseAt = (base: number, sec: number) => PHRASES[(base + Math.floor(sec / 3)) % PHRASES.length]!
 
-export const REST_AFTER = 30
-
 /** ` · 🍅 24:59` while the tomato timer runs or is paused; nothing when it is stopped or absent. */
 export const pomoSuffix = (p: { status: string; endsAt: number; leftMs: number } | null | undefined, now: number) => {
   if (!p || (p.status !== 'running' && p.status !== 'paused')) return ''
@@ -35,22 +33,27 @@ export const pomoSuffix = (p: { status: string; endsAt: number; leftMs: number }
 }
 
 export const line = (t: { sec: number; tools: number; base: number }) =>
-  `${phraseAt(t.base, t.sec)} · 도구 ${t.tools}번` // seconds still drive the rotation and the rest notice, but are not shown
+  `${phraseAt(t.base, t.sec)} · 도구 ${t.tools}번` // seconds still drive the rotation, but are not shown
 
 let timer: { cancel: () => void } | undefined
+
+/** Switched off in ⚙ 모즈 설정: nothing to show, so nothing is counted either. */
+async function isOff($: EngineInterface) {
+  return ((await read($, settings)) as Settings | null)?.enabled?.spinner === false
+}
 
 export const register: Register = on => {
   let startedAt = 0
   let lastBase = -1
-  let isRested = false
 
   on('turn.start', async ($, e, next) => {
     const result = await next(e)
     if (e.agentId !== undefined) return result // main loop only
 
     timer?.cancel()
+    timer = undefined
+    if (await isOff($)) return result
     startedAt = await $.clock.now()
-    isRested = false
     // A new base never equals the last turn's, so the first phrase differs from the last one shown.
     lastBase = (lastBase + 1 + (startedAt % (PHRASES.length - 1)) + PHRASES.length) % PHRASES.length
     const base = lastBase
@@ -59,10 +62,6 @@ export const register: Register = on => {
     timer = $.clock.every(1000, async () => {
       const sec = Math.floor(((await $.clock.now()) - startedAt) / 1000)
       await update($, turn, t => ({ ...t, sec }))
-      if (sec > REST_AFTER && !isRested) {
-        isRested = true
-        $.ui.toast('☕ 잠깐 숨 고르고 오세요')
-      }
     })
     return result
   })
@@ -70,7 +69,7 @@ export const register: Register = on => {
 
 
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
-    if (((await read($, settings)) as Settings | null)?.enabled?.spinner === false) return next(e)
+    if (await isOff($)) return next(e)
     const t = await read($, turn)
     // The line replaces the engine's word; its own elapsed time and tokens stay beside it.
     const tomato = pomoSuffix(await read($, pomo), await $.clock.now())
@@ -80,7 +79,7 @@ export const register: Register = on => {
 
 /** Counts the turn's tool calls. Run from the band's hook of the same event: a plugin gets one hook per event */
 export async function spinnerToolCall($: EngineInterface, e: any, next: (e: any) => any) {
-  await update($, turn, t => ({ ...t, tools: t.tools + 1 }))
+  if (!(await isOff($))) await update($, turn, t => ({ ...t, tools: t.tools + 1 }))
   return next(e)
 }
 

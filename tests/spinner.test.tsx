@@ -23,7 +23,7 @@ test('ten distinct phrases, rotating every 3s, never the same twice in a row', (
 })
 
 for (const surface of ['desktop', 'terminal'] as const) {
-  test(`spinner shows phrase, tool count and seconds, then rests once past 30s (${surface})`, async ($, on) => {
+  test(`spinner shows phrase, tool count and seconds, and never a rest toast (${surface})`, async ($, on) => {
     let state = { sec: 0, tools: 0, base: 0 }
     const toasts: string[] = []
     const clock = mock.clock(on, { now: 1_000_000 })
@@ -54,9 +54,8 @@ for (const surface of ['desktop', 'terminal'] as const) {
     await ui.unmount()
     expect(toasts).toEqual([])
 
-    await clock.advance(19_000) // 31s
-    await clock.advance(5_000) // later ticks add no second toast
-    expect(toasts).toEqual(['☕ 잠깐 숨 고르고 오세요']) // once
+    await clock.advance(60_000) // a long turn asks for no break
+    expect(toasts).toEqual([])
   })
 }
 
@@ -78,4 +77,17 @@ test('the tomato timer rides at the end of the line while it runs or is paused',
   expect(pomoSuffix({ status: 'paused', endsAt: 0, leftMs: 60_000 }, 0)).toBe(' · 🍅 01:00')
   expect(pomoSuffix({ status: 'idle', endsAt: 0, leftMs: 1_500_000 }, 0)).toBe('')
   expect(pomoSuffix(null, 0)).toBe('')
+})
+
+test('switched off, a turn starts no clock and counts no tools', async ($, on) => {
+  const writes: string[] = []
+  const clock = mock.clock(on, { now: 1_000_000 })
+  on('state.get', (_, e) => ({ value: e.key === 'settings' ? { value: { enabled: { spinner: false }, order: [] }, version: 1 } : { value: undefined, version: 0 } }))
+  on('state.set', (_, e) => (writes.push(e.key), { value: { isSet: true, version: 1 } }))
+  on('turn.start', (_, e) => ({ turnId: e.turnId }))
+  on('tool.call', () => ({ result: {} }))
+  await $.turn.start({ text: 'hi', turnId: 't1' })
+  await $.tool.call({ tool: 'Bash', command: 'ls' })
+  await clock.advance(5_000)
+  expect(writes).not.toContain('turn')
 })
