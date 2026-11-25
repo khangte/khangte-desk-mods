@@ -147,3 +147,26 @@ test("the session's effort lights its button from the first request; a subagent'
   expect((await ui.find({ key: 'effort-low' }))?.props.variant).toBe('secondary')
   await ui.unmount()
 })
+
+test("a subagent's checklist leaves the work at hand's bar alone", async ($, on) => {
+  const { mem } = wire(on, SEED)
+  on('tool.call', () => ({ result: {} }))
+  await $.tool.call({ tool: UP, items: PLAN_ITEMS, scope: 'first_task' })
+  await $.tool.call({ tool: 'TodoWrite', todos: [{ content: '하위 작업', status: 'in_progress' }], agentId: 'a1' })
+  expect(mem.get('plan')?.value).toMatchObject({ items: [{ content: '자료 읽기' }, {}, {}, {}] })
+})
+
+test('a bare /effort only asks: the lit button stays; /effort low moves it', async ($, on) => {
+  wire(on, { ...SEED, effort: 'high' })
+  on('command.run', () => ({ text: '' }))
+  const lit = async () => {
+    const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+    const keys = (await ui.findAll({ type: 'Button' })).filter(b => b.props.variant === 'primary').map(b => b.key)
+    await ui.unmount()
+    return keys.filter(k => k?.startsWith('effort-'))
+  }
+  await $.command.run({ command: 'effort', args: '', origin: { kind: 'user' } })
+  expect(await lit()).toEqual(['effort-high'])
+  await $.command.run({ command: 'effort', args: 'low', origin: { kind: 'user' } })
+  expect(await lit()).toEqual(['effort-low'])
+})

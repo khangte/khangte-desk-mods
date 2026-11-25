@@ -90,3 +90,15 @@ for (const surface of ['desktop', 'terminal'] as const) {
     await bar.unmount()
   })
 }
+
+test('⚡ ▲ and ✕ act on the request pressed, even when another window changed the stored list since', async ($, on) => {
+  const { kept } = wire(on, { quick: ['a', 'b', 'c'] })
+  const ui = await $.ui.mount({ ...SETTINGS, surface: 'desktop' })
+  kept.set('quick', ['b', 'c']) // another window deleted 'a'
+  await ui.press({ key: 'quick-del-2' }) // drawn as 'c'
+  expect(kept.get('quick')).toEqual(['b'])
+  kept.set('quick', ['x', 'b'])
+  await ui.press({ key: 'quick-up-1' }) // drawn as 'b'
+  expect(kept.get('quick')).toEqual(['b', 'x'])
+  await ui.unmount()
+})

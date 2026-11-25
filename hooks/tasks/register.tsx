@@ -121,19 +121,15 @@ async function addTask($: EngineInterface, text: string): Promise<{ text: string
   return { text: `추가했어요: ${task.title} · ${whenOf(task, dayOf(now))} · #${task.tag}`, isAdded: true }
 }
 
-async function openPane($: EngineInterface) {
-  await showPane($, PANE, TITLE)
-}
-
 export const register: Register = on => {
 
   on('command.run', { command: 'todo' }, async ($, e) => {
     if (e.args.trim() === '') {
-      await openPane($)
+      await showPane($, PANE, TITLE)
       return { text: `${TITLE} 패널을 열었어요.` }
     }
     const r = await addTask($, e.args)
-    if (r.isAdded) await openPane($)
+    if (r.isAdded) await showPane($, PANE, TITLE)
     return { text: r.text }
   })
 

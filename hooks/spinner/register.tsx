@@ -1,6 +1,6 @@
-import type { Settings } from '../../types'
+import type { Pomo, Settings } from '../../types'
 import { DEFAULT_SETTINGS } from '../band/layout'
-import { freshPomo } from '../tasks/pomodoro'
+import { clock, freshPomo, remaining } from '../tasks/pomodoro'
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
@@ -31,9 +31,7 @@ export const REST_AFTER = 30
 /** ` · 🍅 24:59` while the tomato timer runs or is paused; nothing when it is stopped or absent. */
 export const pomoSuffix = (p: { status: string; endsAt: number; leftMs: number } | null | undefined, now: number) => {
   if (!p || (p.status !== 'running' && p.status !== 'paused')) return ''
-  // same rounding as today-tasks' own clock, so both show the same second
-  const s = Math.ceil((p.status === 'running' ? Math.max(0, p.endsAt - now) : p.leftMs) / 1000)
-  return ` · 🍅 ${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+  return ` · 🍅 ${clock(remaining(p as Pomo, now))}` // today-tasks' own clock: both show the same second
 }
 
 export const line = (t: { sec: number; tools: number; base: number }) =>

@@ -7,7 +7,7 @@ import { clock as pomoClock, freshPomo, remaining } from '../tasks/pomodoro'
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderChildren, SessionUsage } from 'claude-code'
 
-import type { Hours, Settings, Sys, Task, TodoTask, Usage } from '../../types'
+import type { Hours, Settings, Sys, Task, Usage } from '../../types'
 import { dayOf, listFor, thinBar, todayProgress } from '../tasks/tasks'
 
 import { BANDS, DEFAULT_SETTINGS, FEATURES, normalize, shift, toggle, visible } from './layout'
@@ -41,7 +41,6 @@ const model = atom({ plugin: 'khangte-desk-mods', key: 'model' } as const, '')
 const memo = atom({ plugin: 'khangte-desk-mods', key: 'memo' } as const, '')
 const memoReady = atom({ plugin: 'khangte-desk-mods', key: 'memoReady' } as const, false)
 const memoBlink = atom({ plugin: 'khangte-desk-mods', key: 'memoBlink' } as const, 0)
-const MEMO = 'next-memo'
 const MEMO_TITLE = '📝 다음 요청 메모'
 const CONTROL = 'control-center'
 const CONTROL_TITLE = '🎛 Claude 도구'
@@ -97,11 +96,6 @@ const barSvg = (width: number, pct: number | undefined, color: string) => {
     `<rect x="0" y="4" width="${width}" height="10" fill="url(#d)"/>` +
     `<rect x="0" y="4" width="${fill}" height="10" fill="${color}"/></svg>`
   )
-}
-
-/** Opens 🗓 오늘 할 일 from the band's button. */
-async function openTasks($: EngineInterface) {
-  await showPane($, TASKS_PANE, TASKS_TITLE) // the same plugin's pane: opened directly, no /todo
 }
 
 /** Trimmed, no blanks or repeats, at most MAX_QUICK. */
@@ -237,8 +231,8 @@ export const dogSvg = (x: number, width: number, step: 0 | 1, trail = C.trail) =
 
 
 /** Today's /todo list as the bands read it: the 🗓 pane's own rules, so the band and the pane never disagree. */
-export const todayTodo = (tasks: readonly TodoTask[] | null | undefined, nowMs: number) => {
-  const list = (tasks ?? []) as readonly Task[] // the same saved list; only day, due, done and title are read
+export const todayTodo = (tasks: readonly Task[] | null | undefined, nowMs: number) => {
+  const list = tasks ?? []
   const today = dayOf(nowMs)
   const { done, total } = todayProgress(list, today)
   return { done, total, open: listFor(list, '오늘', today).map(t => t.title) }
@@ -345,8 +339,8 @@ export const register: Register = on => {
 
   // Claude's checklist, followed from the calls that keep it; the call itself goes on unchanged.
   on('tool.call', async ($, e, next) => {
-    const now = await read($, plan)
-    const after = planAfter(now, e.tool, e as unknown as Record<string, unknown>)
+    // a subagent's own checklist is not the work at hand
+    const after = e.agentId === undefined ? planAfter(await read($, plan), e.tool, e as unknown as Record<string, unknown>) : undefined
     if (after !== undefined) await update($, plan, () => after)
     return spinnerToolCall($, e, next)
   })
@@ -583,8 +577,12 @@ export const register: Register = on => {
           <Box flexDirection="column">
             {nexts.map((q, i) =>
               item(`quick-${i}`, `${i + 1}. ${q}`, true, [
-                <Button key={`quick-up-${i}`} onPress={() => saveQuick($, l => (i === 0 ? l : [...l.slice(0, i - 1), l[i]!, l[i - 1]!, ...l.slice(i + 1)]))}>▲</Button>,
-                <Button key={`quick-del-${i}`} onPress={() => saveQuick($, l => l.filter((_, k) => k !== i))}>✕</Button>,
+                // by text, not index: another window may have changed the stored list since this drawing (texts are unique)
+                <Button key={`quick-up-${i}`} onPress={() => saveQuick($, l => {
+                  const k = l.indexOf(q)
+                  return k <= 0 ? l : [...l.slice(0, k - 1), q, l[k - 1]!, ...l.slice(k + 1)]
+                })}>▲</Button>,
+                <Button key={`quick-del-${i}`} onPress={() => saveQuick($, l => l.filter(x => x !== q))}>✕</Button>,
               ]),
             )}
           </Box>
@@ -640,7 +638,9 @@ export const register: Register = on => {
 
   // an /effort typed by hand moves the lit button too
   on('command.run', { command: 'effort' }, async ($, e, next) => {
-    if (e.origin.kind !== 'plugin') await update($, effort, () => e.args.trim())
+    const level = e.args.trim()
+    // a bare /effort only asks: the lit button stays
+    if (e.origin.kind !== 'plugin' && EFFORTS.some(f => f.level === level)) await update($, effort, () => level)
     return next(e)
   })
 
@@ -742,10 +742,7 @@ export const register: Register = on => {
 
     const isMasked = (await read($, isShielded)) !== false
     const work = planView(await read($, plan))
-    const boxes = t // one box per task of today's /todo list, filled per done one
     const nextChips = chips(await quickNow($)) // hidden until requests are set in ⚙ 모즈 설정
-    const memoWaiting = (await read($, memoReady)) && (await read($, memo)).trim() !== ''
-    const memoLit = memoWaiting && (await read($, memoBlink)) === 1
     // Desktop buttons stand taller than a line of text: rows that hold them get two lines, so nothing overlaps.
     const buttonRow = isTerminal ? {} : { minHeight: 2, rowGap: 1 }
     const isUrgent = leave.kind === 'soon' || leave.kind === 'tidy'
@@ -788,12 +785,12 @@ export const register: Register = on => {
     }
     const leaveTextOf = leave.meter ? `${leave.meter.clock} 남음 · ${leave.meter.pct}%` : leave.text
     const leaveCells = LABEL + 4 + (isTextOnly ? trackChars : trackPx / PX_PER_CELL) + cellWidth(leaveTextOf)
-    const countText = `${boxes.done}/${boxes.total}`
+    const countText = `${t.done}/${t.total}`
     // a running or paused 🍅 shows at the row's end, so the time left needs no pane
     const tp = (await read($, pomo)) ?? freshPomo('') // a value never written reads as nothing in tests
     const pomoText = tp.status === 'idle' ? '' : `${tp.mode === 'rest' ? '☕' : '🍅'} ${pomoClock(remaining(tp, now))}${tp.status === 'paused' ? ' ⏸' : ''}`
     // same length as the 퇴근 row: its tag, 🏠 track 🚩 and time, less this row's tag and count
-    const gaugeCells = Math.max(boxes.total * 2, Math.round(leaveCells - LABEL - cellWidth(countText) - (pomoText ? cellWidth(pomoText) + 3 : 0)))
+    const gaugeCells = Math.max(t.total * 2, Math.round(leaveCells - LABEL - cellWidth(countText) - (pomoText ? cellWidth(pomoText) + 3 : 0)))
     const leaveBody =
       leave.kind === 'cheer' ? (
         <Text size="title" weight="bold" color={C.orange} wrap="truncate">{leave.text}</Text>
@@ -812,24 +809,24 @@ export const register: Register = on => {
       // Hidden (nothing drawn) while there is no checklist for the request at hand.
       // One box per task of today's /todo list, filled as each is done; the boxes share the row's width.
       todo:
-        boxes.total > 0 || pomoText ? (
+        t.total > 0 || pomoText ? (
           <Box key="todo" flexDirection="row" alignItems="center" columnGap={1} backgroundColor={C.navy} paddingX={1}>
             {tag('할 일', 1)}
-            {boxes.total === 0 ? null : isTextOnly ? (
+            {t.total === 0 ? null : isTextOnly ? (
               <Text mono wrap="truncate">
-                {boxGaugeText(boxes.done, boxes.total, gaugeCells).map((b, i) => (
+                {boxGaugeText(t.done, t.total, gaugeCells).map((b, i) => (
                   <Text key={`box-${i}`} color={b.isDone ? C.teal : C.boxEmpty}>{(i > 0 ? ' ' : '') + b.text}</Text>
                 ))}
               </Text>
             ) : (
               <r.Svg
-                source={boxGaugeSvg(boxes.done, boxes.total, gaugeCells * PX_PER_CELL)}
-                alt={`오늘 할 일 ${boxes.done}/${boxes.total}`}
+                source={boxGaugeSvg(t.done, t.total, gaugeCells * PX_PER_CELL)}
+                alt={`오늘 할 일 ${t.done}/${t.total}`}
                 width={gaugeCells * PX_PER_CELL}
                 height={BOX_H}
               />
             )}
-            {boxes.total === 0 ? null : <Text mono tabular size="footnote" weight="bold" color={C.name}>{countText}</Text>}
+            {t.total === 0 ? null : <Text mono tabular size="footnote" weight="bold" color={C.name}>{countText}</Text>}
             {pomoText ? <Text mono tabular size="footnote" color={tp.mode === 'rest' ? C.green : C.orange}>{`· ${pomoText}`}</Text> : null}
           </Box>
         ) : null,
@@ -887,7 +884,7 @@ export const register: Register = on => {
           <Text key="rule" color={C.dots}>│</Text>,
         ]}
         {cfg.enabled.tasks === false ? null : (
-          <Button key="open-tasks" onPress={() => openTasks($)}>
+          <Button key="open-tasks" onPress={() => showPane($, TASKS_PANE, TASKS_TITLE)}>
             🗓 오늘 할 일
           </Button>
         )}
