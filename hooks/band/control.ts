@@ -10,7 +10,7 @@ const DARK = {
   deep: '#dbeafe', blue: '#60a5fa', mid: '#93c5fd', sky: '#bfdbfe', pale: '#1e3a8a', ice: '#0b1226', white: '#ffffff',
   // the band above the prompt
   navy: '#0f1b3d', name: '#e6ebf5', gray: '#b8c0cc', orange: '#fb923c', dots: '#7a8499', dotsBg: '#26314d',
-  teal: '#2dd4bf', green: '#4ade80', cyan: '#7dd3fc', boxEmpty: '#334155', rest: '#aab3c5', trail: '#EF4444',
+  teal: '#2dd4bf', green: '#4ade80', cyan: '#7dd3fc', boxEmpty: '#334155', rest: '#aab3c5', trail: '#60a5fa',
   red: '#ef4444', yellow: '#facc15',
   // 🗓 오늘 할 일's cards, by tag, and a finished one
   card: {
@@ -26,7 +26,7 @@ type Palette = typeof DARK
 const LIGHT: Palette = {
   deep: '#1e3a8a', blue: '#2563eb', mid: '#3b5b99', sky: '#1e40af', pale: '#bfdbfe', ice: '#eff6ff', white: '#ffffff',
   navy: '#e8eefb', name: '#0f1b3d', gray: '#4b5563', orange: '#c2410c', dots: '#94a3b8', dotsBg: '#d5deef',
-  teal: '#0d9488', green: '#16a34a', cyan: '#0284c7', boxEmpty: '#cbd5e1', rest: '#94a3b8', trail: '#dc2626',
+  teal: '#0d9488', green: '#16a34a', cyan: '#0284c7', boxEmpty: '#cbd5e1', rest: '#94a3b8', trail: '#2563eb',
   red: '#dc2626', yellow: '#ca8a04',
   card: {
     급함: { bg: '#dbeafe', fg: '#1e3a8a', chipBg: '#2563eb', chipFg: '#ffffff' },

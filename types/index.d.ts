@@ -28,7 +28,7 @@ export type Plan = { items: PlanItem[] }
 export type Tag = '급함' | '업무' | '중요'
 export type Tab = '오늘' | '예정' | '완료'
 /** One to-do: `day` is `YYYY-MM-DD`, `due` an optional `HH:MM` that day. */
-export type Task = { id: string; title: string; tag: Tag; due?: string; day: string; done: boolean }
+export type Task = { id: string; title: string; tag: Tag; due?: string; day: string; done: boolean; doneOn?: string } // doneOn: the day it was ticked
 
 /** Focus and rest lengths, in minutes. */
 export type Minutes = { focus: number; rest: number }
@@ -42,7 +42,7 @@ declare module 'claude-code' {
   interface PluginState {
     'khangte-desk-mods': {
       // the band and its panes
-      usage: Usage | null; sys: Sys | null; frame: number; hours: Hours; tick: number; settings: Settings; isShielded: boolean; isCheering: boolean
+      usage: Usage | null; sys: Sys | null; frame: number; hours: Hours; tick: number; settings: Settings; isShielded: boolean
       plan: Plan | null; effort: string; model: string; memo: string; quick: string[] | null; memoReady: boolean; memoBlink: number
       // 🗓 오늘 할 일
       tasks: Task[]; tab: Tab; pomo: Pomo; minutes: Minutes; taskTick: number

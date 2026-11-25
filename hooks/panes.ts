@@ -9,3 +9,6 @@ export async function showPane($: EngineInterface, id: string, title: string) {
   if (open.some(p => p.id === id && !p.isShown)) await $.ui.close({ id })
   await $.ui.open({ id, title })
 }
+
+/** A label without its leading icon: the terminal draws an emoji 1 or 2 cells wide by font, which shifts the row after it. */
+export const iconless = (text: string) => text.replace(/^\p{Extended_Pictographic}️?\s*/u, '')

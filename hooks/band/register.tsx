@@ -1,4 +1,4 @@
-import { showPane } from '../panes'
+import { iconless, showPane } from '../panes'
 import { PANE as TASKS_PANE, TITLE as TASKS_TITLE } from '../tasks/register'
 // a plugin gets one hook per event: the other parts' session.start, tool.call and turn.complete run from here
 import { spinnerToolCall, spinnerTurnComplete } from '../spinner/register'
@@ -29,7 +29,6 @@ const hours = atom({ plugin: 'khangte-desk-mods', key: 'hours' } as const, DEFAU
 const tick = atom({ plugin: 'khangte-desk-mods', key: 'tick' } as const, 0)
 const settings = atom({ plugin: 'khangte-desk-mods', key: 'settings' } as const, DEFAULT_SETTINGS)
 const isShielded = atom({ plugin: 'khangte-desk-mods', key: 'isShielded' } as const, true) // starts on, every session
-const isCheering = atom({ plugin: 'khangte-desk-mods', key: 'isCheering' } as const, true) // the spinner's button; starts on, every session
 const PANE = 'mods-settings'
 const SCHEMES = [
   { id: 'dark', label: '어둡게' },
@@ -54,10 +53,12 @@ const PX_PER_CELL = 8 // shortcut: assumes ~8px per cell at the desktop's mono f
 const MIN_BAR = 3
 const FIELD_WIDTH = 22 // cells: a label, `09:00` or `180`, and the field's own frame
 
-type Cell = { icon: string; name: string; color: string; pct?: number; reset?: string; hasReset: boolean; extra?: string; noBar?: boolean }
+type Cell = { name: string; color: string; pct?: number; reset?: string; hasReset: boolean; extra?: string; isLowBad?: boolean }
 
-/** Cells the band needs besides the bars: icons, names, brackets, %, separators. */
-const FIXED = 3 * (2 + 1 + 1 + 2 + 1 + 4) + 'SESSION'.length + 'WEEK'.length + 'CONTEXT'.length + 2 * 3
+/** Cells every row's label takes, padded: the bands' contents start in one column. */
+export const LABEL = 10
+/** Cells the band needs besides the bars: its label, names, brackets, %, separators. */
+const FIXED = LABEL + 1 + 3 * (1 + 2 + 1 + 4) + 'SESSION'.length + 'WEEK'.length + 'CONTEXT'.length + 2 * 3
 const RESETS = 2 * 7
 
 /** Shrinks the bars first, then drops the ↻ times, so the band stays one row. */
@@ -66,9 +67,6 @@ export const fit = (columns: number, maxBar: number) => {
   if (withReset >= MIN_BAR) return { bar: Math.min(withReset, maxBar), showReset: true }
   return { bar: Math.max(1, Math.min(Math.floor((columns - FIXED) / 3), MIN_BAR)), showReset: false }
 }
-
-export const weather = (pct?: number) =>
-  pct === undefined ? '–' : pct < 50 ? '☀' : pct < 70 ? '☁' : pct < 85 ? '☂' : '⚡'
 
 export const left = (iso: string | undefined, now: number) => {
   const ms = iso === undefined ? NaN : Date.parse(iso) - now
@@ -139,6 +137,7 @@ async function saveSettings($: EngineInterface, fn: (s: Settings) => Settings) {
 // writing the state on every key redrew the pane mid-typing and dropped letters.
 let memoDraft: string | null = null
 let quickDraft = ''
+let quickAdds = 0 // a new key per add: the host keeps typed text over a redraw whose value is unchanged ('' to '')
 const hoursDraft: { start?: string; end?: string } = {}
 let typingIn: string | undefined // the field holding the keyboard, while one does
 
@@ -292,7 +291,7 @@ async function pollSys($: EngineInterface) {
   isPolling = true
   try {
     // '.exe' so WSL finds it through Windows interop; plain Windows resolves it the same.
-    const r = await $.process.run(['powershell.exe', '-NoProfile', '-Command', PS], { timeoutMs: 4000 })
+    const r = await $.process.run(['powershell.exe', '-NoProfile', '-Command', PS], { timeoutMs: 15_000 }) // a busy PC takes 4-5s just to start PowerShell and ask CIM; longer than the period, isPolling skips the overlap
     const s = parseSys(r.exitCode === 0 ? r.stdout : '')
     sysFailures = Object.values(s).some(v => v !== undefined) ? 0 : sysFailures + 1
     await update($, sys, () => s)
@@ -335,8 +334,8 @@ export const register: Register = on => {
       const n = await $.clock.now()
       await update($, tick, () => n)
     })
-    // 15s: spawning PowerShell costs CPU itself, and every open session polls on its own
-    $.clock.every(15_000, () => {
+    // 10s: spawning PowerShell costs CPU itself, and every open session polls on its own
+    $.clock.every(10_000, () => {
       void pollSys($)
     })
     // The legs swing only while there is still a way to go.
@@ -394,12 +393,13 @@ export const register: Register = on => {
     const level = await read($, effort)
     const current = await read($, model)
     const isTerminal = e.surface === 'terminal'
+    const ic = (s: string) => (isTerminal ? iconless(s) : s) // icons on desktop only
     const line = isTerminal ? {} : { minHeight: 2 }
     const gap = isTerminal ? 0 : 1
     const note = await memoText($)
     const isReady = (await read($, memoReady)) && note.trim() !== ''
     const isLit = isReady && (await read($, memoBlink)) === 1
-    const memoStatus = note.trim() === '' ? '비어 있어요' : isReady ? '✨ 답이 끝났어요. 채워 보세요' : `저장됨 · ${note.length}자`
+    const memoStatus = note.trim() === '' ? '비어 있어요' : isReady ? ic('✨ 답이 끝났어요. 채워 보세요') : `저장됨 · ${note.length}자`
     // A thin rule across the pane between its parts.
     const divider = (key: string) => (
       <Text key={key} color={C.pale} wrap="truncate">{'─'.repeat(Math.max(10, e.props.bodyColumns - 2))}</Text>
@@ -416,10 +416,10 @@ export const register: Register = on => {
 
     return (
       <Box flexDirection="column" rowGap={gap} paddingX={1} paddingY={1}>
-        <Text size="heading" weight="bold" color={C.deep}>{CONTROL_TITLE}</Text>
+        <Text size="heading" weight="bold" color={C.deep}>{ic(CONTROL_TITLE)}</Text>
 
         <Box flexDirection="column" rowGap={gap}>
-          <Text weight="bold" color={C.deep}>🤖 모델</Text>
+          <Text weight="bold" color={C.deep}>{ic('🤖 모델')}</Text>
           <Box {...line} flexDirection="row" alignItems="center" columnGap={1} flexWrap="wrap">
             <Text weight="bold" color={C.deep} mono>{'Model '}</Text>
             {MODELS.map(m => (
@@ -441,14 +441,14 @@ export const register: Register = on => {
         {divider('cc-line-2')}
         {(
           <Box key="memo" flexDirection="column" rowGap={gap}>
-            <Text weight="bold" color={C.deep}>{MEMO_TITLE}</Text>
+            <Text weight="bold" color={C.deep}>{ic(MEMO_TITLE)}</Text>
             <Text size="footnote" color={C.mid}>Claude가 일하는 동안 다음에 시킬 일을 적어 두세요. 적는 대로 저장돼요.</Text>
             {'Input' in r ? (
               <r.Input
                 key="memo-input"
                 rows={4}
                 value={note}
-                placeholder="예: 방금 만든 표를 그래프로도 그려 줘"
+                placeholder="방금 기획한 기능을 추가해줘"
                 submitLabel="저장"
                 onInput={v => {
                   memoDraft = v // kept here and in the store, not in the state: no redraw while typing
@@ -464,7 +464,7 @@ export const register: Register = on => {
               <Box flexDirection="row" columnGap={1} alignItems="center">
                 <Button key="memo-clear" onPress={() => saveMemo($, '')}>지우기</Button>
                 <Button key="memo-fill" variant={isLit ? 'primary' : 'secondary'} onPress={() => fillMemo($)}>
-                  {isReady ? '✨ 입력창에 채우기' : '입력창에 채우기'}
+                  {isReady ? ic('✨ 입력창에 채우기') : '입력창에 채우기'}
                 </Button>
               </Box>
             </Box>
@@ -492,12 +492,13 @@ export const register: Register = on => {
       const isOn = cfg.enabled[id] !== false
       return (
         <Button key={`sw-${id}`} variant={isOn ? 'primary' : 'secondary'} onPress={() => change(s => toggle(s, id))}>
-          {isOn ? '켜짐' : '꺼짐'}
+          {isOn ? '● 켜짐' : '○ 꺼짐'}
         </Button>
       )
     }
 
     const isTerminal = e.surface === 'terminal'
+    const ic = (s: string) => (isTerminal ? iconless(s) : s) // icons on desktop only
     // Desktop buttons stand taller than a line: each row gets two lines and a gap, so rows never touch.
     const line = isTerminal ? {} : { minHeight: 2 }
     const gap = isTerminal ? 0 : 1
@@ -517,52 +518,33 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column" rowGap={gap} paddingX={1}>
         <Text weight="bold">입력창 위 띠</Text>
-        <Text dimColor>위에서 아래로 그려지는 순서예요. ▲▼로 옮기고, 오른쪽 버튼로 켜고 끕니다.</Text>
+        <Text dimColor>위에서 아래로 그려지는 순서예요. ▲▼로 옮기고, 오른쪽 버튼으로 켜고 끕니다.</Text>
         <Box flexDirection="column" rowGap={gap}>
           {cfg.order.map((id, i) => {
             const band = nameOf(id)
             const isOn = cfg.enabled[id] !== false
-            return item(id, `${i + 1}. ${band?.icon ?? ''} ${band?.name ?? id}`, isOn, [
-              <Button key={`up-${id}`} onPress={() => change(s => shift(s, id, -1))}>▲</Button>,
-              <Button key={`down-${id}`} onPress={() => change(s => shift(s, id, 1))}>▼</Button>,
+            // no (설명): long names push the ▲▼ about; the icon only off the terminal
+            return item(id, `${i + 1}. ${ic(`${band?.icon ?? ''} ${(band?.name ?? id).replace(/ \(.*\)$/, '')}`)}`, isOn, [
+              <Button key={`up-${id}`} dimColor={i === 0} onPress={() => change(s => shift(s, id, -1))}>▲</Button>,
+              <Button key={`down-${id}`} dimColor={i === cfg.order.length - 1} onPress={() => change(s => shift(s, id, 1))}>▼</Button>,
               switchOf(id),
             ])
           })}
         </Box>
-        {divider('set-line-q')}
-        <Text weight="bold">⚡ 원터치 요청 버튼</Text>
-        <Text dimColor>여기 적은 요청이 입력창 위 ⚡ 버튼이 돼요. 누르면 입력창에 채워지고, 보내는 건 직접 해야 돼요.</Text>
-        {nexts.length === 0 ? (
-          <Text dimColor>아직 없어요. 예: 이번 수정건 재검토해</Text>
-        ) : (
-          <Box flexDirection="column">
-            {nexts.map((q, i) =>
-              item(`quick-${i}`, `${i + 1}. ${q}`, true, [
-                <Button key={`quick-up-${i}`} onPress={() => saveQuick($, l => (i === 0 ? l : [...l.slice(0, i - 1), l[i]!, l[i - 1]!, ...l.slice(i + 1)]))}>▲</Button>,
-                <Button key={`quick-del-${i}`} onPress={() => saveQuick($, l => l.filter((_, k) => k !== i))}>✕</Button>,
-              ]),
-            )}
-          </Box>
-        )}
-        {'Input' in r && nexts.length < MAX_QUICK ? (
-          <r.Input
-            key="quick-add"
-            placeholder="새 요청을 적고 Enter (예: 이번 수정건 재검토해)"
-            submitLabel="추가"
-            value={quickDraft}
-            onInput={v => {
-              quickDraft = v // kept here, not in the state: no redraw while typing
-            }}
-            onSubmit={v => {
-              quickDraft = ''
-              void saveQuick($, l => [...l, v])
-            }}
-          />
-        ) : null}
+        {divider('set-line-0')}
+        <Text weight="bold">{ic('🎨 색상')}</Text>
+        <Text dimColor>어두운 화면이면 어둡게, 흰 화면이면 밝게를 고르세요.</Text>
+        <Box {...line} flexDirection="row" alignItems="center" columnGap={1}>
+          {SCHEMES.map(sc => (
+            <Button key={`scheme-${sc.id}`} variant={cfg.scheme === sc.id ? 'primary' : 'secondary'} onPress={() => change(s => ({ ...s, scheme: sc.id }))}>
+              {sc.label}
+            </Button>
+          ))}
+        </Box>
         {'Input' in r ? (
           [
             divider('set-line-h'),
-            <Text key="hours-title" weight="bold">⏰ 근무 시간</Text>,
+            <Text key="hours-title" weight="bold">{ic('⏰ 근무 시간')}</Text>,
             <Box key="hours-fields" flexDirection="row" columnGap={2} alignItems="center" flexWrap="wrap">
               {(['start', 'end'] as const).map(k => (
                 <Box key={`hours-${k}-box`} width={FIELD_WIDTH} flexShrink={0}>
@@ -592,27 +574,48 @@ export const register: Register = on => {
         ) : (
           <Text dimColor>근무 시간은 /workhours로 바꿀 수 있어요.</Text>
         )}
-        {divider('set-line-0')}
-        <Text weight="bold">🎨 색상</Text>
-        <Text dimColor>어두운 화면이면 어둡게, 흰 화면이면 밝게를 고르세요.</Text>
-        <Box {...line} flexDirection="row" alignItems="center" columnGap={1}>
-          {SCHEMES.map(sc => (
-            <Button key={`scheme-${sc.id}`} variant={cfg.scheme === sc.id ? 'primary' : 'secondary'} onPress={() => change(s => ({ ...s, scheme: sc.id }))}>
-              {sc.label}
-            </Button>
-          ))}
-        </Box>
+        {divider('set-line-q')}
+        <Text weight="bold">{ic('⚡ 원터치 요청 버튼')}</Text>
+        <Text dimColor>여기 적은 요청이 입력창 위 ⚡ 버튼이 돼요. 누르면 입력창에 채워지고, 보내는 건 직접 해야 돼요.</Text>
+        {nexts.length === 0 ? (
+          <Text dimColor>아직 없어요.</Text>
+        ) : (
+          <Box flexDirection="column">
+            {nexts.map((q, i) =>
+              item(`quick-${i}`, `${i + 1}. ${q}`, true, [
+                <Button key={`quick-up-${i}`} onPress={() => saveQuick($, l => (i === 0 ? l : [...l.slice(0, i - 1), l[i]!, l[i - 1]!, ...l.slice(i + 1)]))}>▲</Button>,
+                <Button key={`quick-del-${i}`} onPress={() => saveQuick($, l => l.filter((_, k) => k !== i))}>✕</Button>,
+              ]),
+            )}
+          </Box>
+        )}
+        {'Input' in r && nexts.length < MAX_QUICK ? (
+          <r.Input
+            key={`quick-add-${quickAdds}`}
+            placeholder="다음 진행해"
+            submitLabel="추가"
+            value={quickDraft}
+            onInput={v => {
+              quickDraft = v // kept here, not in the state: no redraw while typing
+            }}
+            onSubmit={v => {
+              quickDraft = ''
+              quickAdds += 1
+              void saveQuick($, l => [...l, v])
+            }}
+          />
+        ) : null}
         {divider('set-line-1')}
         <Text weight="bold">기능</Text>
         <Text dimColor>끄면 그 기능이 멈춰요.</Text>
         <Box flexDirection="column" rowGap={gap}>
-          {FEATURES.filter(it => it.group === 'feature').map(it => item(it.id, `${it.icon} ${it.name}`, cfg.enabled[it.id] !== false, [switchOf(it.id)]))}
+          {FEATURES.filter(it => it.group === 'feature').map(it => item(it.id, ic(`${it.icon} ${it.name}`), cfg.enabled[it.id] !== false, [switchOf(it.id)]))}
         </Box>
         {divider('set-line-2')}
         <Text weight="bold">버튼 줄</Text>
-        <Text dimColor>입력창 위 맨 아래 줄에 패널을 여는 버튼을 보일지 정해요. ⚙ 모즈 설정 버튼은 늘 있어요.</Text>
+        <Text dimColor>입력창 위 맨 아래 줄에 버튼을 보일지 정해요. 모자이크는 그 버튼으로 켜고 끄고, 숨기면 꺼져요. ⚙ 모즈 설정 버튼은 늘 있어요.</Text>
         <Box flexDirection="column" rowGap={gap}>
-          {FEATURES.filter(it => it.group === 'button').map(it => item(it.id, `${it.icon} ${it.name} 버튼`, cfg.enabled[it.id] !== false, [switchOf(it.id)]))}
+          {FEATURES.filter(it => it.group === 'button').map(it => item(it.id, ic(`${it.icon} ${it.name} 버튼`), cfg.enabled[it.id] !== false, [switchOf(it.id)]))}
         </Box>
       </Box>
     )
@@ -675,12 +678,17 @@ export const register: Register = on => {
     const isTerminal = e.surface === 'terminal'
     const { bar, showReset } = fit(e.props.bodyColumns, isTerminal ? 20 : 120 / PX_PER_CELL)
     const cells: Cell[] = [
-      { icon: weather(u.context), name: 'CONTEXT', color: C.cyan, pct: u.context, hasReset: false },
-      { icon: '⏱', name: 'SESSION', color: C.teal, pct: u.session, reset: u.sessionReset, hasReset: true },
-      { icon: '📅', name: 'WEEK', color: C.green, pct: u.week, reset: u.weekReset, hasReset: true },
+      { name: 'CONTEXT', color: C.cyan, pct: u.context, hasReset: false },
+      { name: 'SESSION', color: C.teal, pct: u.session, reset: u.sessionReset, hasReset: true },
+      { name: 'WEEK', color: C.green, pct: u.week, reset: u.weekReset, hasReset: true },
     ]
     const r = $.ui.resolve(e)
     const { Box, Button, Text } = r
+    // Every band opens with its bold label padded to LABEL cells, no icon: an emoji's width differs by terminal and shifts the row.
+    // gap: the row's own columnGap after the tag, taken off the padding so every row's body starts at the same column
+    const tag = (name: string, gap = 0) => (
+      <Text mono size="footnote" weight="bold" color={C.mid} wrap="truncate">{name + ' '.repeat(Math.max(1 - gap, LABEL - gap - cellWidth(name)))}</Text>
+    )
 
     const drawBar = (c: Cell, color: string) => {
       if (e.surface === 'terminal' || !('Svg' in r)) {
@@ -697,22 +705,22 @@ export const register: Register = on => {
       return <Svg source={barSvg(px, c.pct, color)} alt={`${c.name} ${c.pct ?? '–'}%`} width={px} height={HEIGHT} />
     }
 
-    const row = (cells: Cell[], key: string) => (
+    const row = (label: string, cells: Cell[], key: string) => (
       <Box key={key} flexDirection="row" flexWrap="nowrap" alignItems="center" overflow="hidden" backgroundColor={C.navy} paddingX={1}>
+        {tag(label)}
         {cells.map((c, i) => {
-          const color = (c.pct ?? 0) > 80 ? C.orange : c.color
+          // the battery warns when low, the rest when high
+          const color = (c.isLowBad ? (c.pct ?? 100) < 20 : (c.pct ?? 0) > 80) ? C.orange : c.color
           const pct = c.pct === undefined ? '–' : `${Math.round(c.pct)}%`
           return (
             <Box key={c.name} flexDirection="row" flexWrap="nowrap" alignItems="center" flexShrink={0}>
               {i > 0 ? <Text mono size="footnote" color={C.gray} wrap="truncate">{' │ '}</Text> : null}
-              <Text mono size="footnote" color={C.name} wrap="truncate">{`${c.icon} `}</Text>
-              {c.noBar ? null : (
-                <Text mono size="footnote" weight="bold" color={C.name} wrap="truncate">{`${c.name} [`}</Text>
-              )}
-              {c.noBar ? null : drawBar(c, color)}
-              {c.noBar ? null : <Text mono size="footnote" weight="bold" color={C.name} wrap="truncate">{']'}</Text>}
+              {/* a bare figure needs its name too: no bar, no bracket */}
+              <Text mono size="footnote" weight="bold" color={C.name} wrap="truncate">{`${c.name} [`}</Text>
+              {drawBar(c, color)}
+              <Text mono size="footnote" weight="bold" color={C.name} wrap="truncate">{']'}</Text>
               <Text mono tabular size="footnote" color={C.gray} wrap="truncate">
-                {c.noBar ? pct : ` ${pct}`}
+                {` ${pct}`}
                 {c.hasReset && showReset ? ` ↻${left(c.reset, now)}` : ''}
                 {c.extra ? ` ${c.extra}` : ''}
               </Text>
@@ -724,16 +732,15 @@ export const register: Register = on => {
 
     const ram = s.ramUsedGb === undefined ? '–' : `${s.ramUsedGb.toFixed(1)}/${s.ramTotalGb}GB`
     const sysCells: Cell[] = [
-      { icon: '🖥', name: 'CPU', color: C.teal, pct: s.cpu, hasReset: false },
-      { icon: '🧠', name: 'RAM', color: C.green, pct: s.ram, hasReset: false, extra: ram },
-      { icon: '🔋', name: 'BAT', color: C.cyan, pct: s.battery, hasReset: false, noBar: true },
+      { name: 'CPU', color: C.teal, pct: s.cpu, hasReset: false },
+      { name: 'RAM', color: C.green, pct: s.ram, hasReset: false, extra: ram },
+      { name: 'BAT', color: C.cyan, pct: s.battery, hasReset: false, isLowBad: true },
     ]
 
     const leave = leaveView(now, wh)
     const cols = e.props.bodyColumns
 
     const isMasked = (await read($, isShielded)) !== false
-    const isCheerOn = (await read($, isCheering)) !== false
     const work = planView(await read($, plan))
     const boxes = t // one box per task of today's /todo list, filled per done one
     const nextChips = chips(await quickNow($)) // hidden until requests are set in ⚙ 모즈 설정
@@ -741,14 +748,6 @@ export const register: Register = on => {
     const memoLit = memoWaiting && (await read($, memoBlink)) === 1
     // Desktop buttons stand taller than a line of text: rows that hold them get two lines, so nothing overlaps.
     const buttonRow = isTerminal ? {} : { minHeight: 2, rowGap: 1 }
-    // Every band opens the same way: an icon and a bold label, then its content.
-    const tag = (icon: string, name: string) => (
-      <Text mono size="footnote" color={C.name} wrap="truncate">
-        {`${icon} `}
-        <Text weight="bold">{name}</Text>
-        {' '}
-      </Text>
-    )
     const isUrgent = leave.kind === 'soon' || leave.kind === 'tidy'
     const trackPx = Math.max(60, Math.min(240, (cols - 44) * PX_PER_CELL))
     const trackChars = Math.max(8, Math.min(cols - 44, 30))
@@ -788,13 +787,13 @@ export const register: Register = on => {
       )
     }
     const leaveTextOf = leave.meter ? `${leave.meter.clock} 남음 · ${leave.meter.pct}%` : leave.text
-    const leaveCells = cellWidth('🏃 퇴근 ') + 4 + (isTextOnly ? trackChars : trackPx / PX_PER_CELL) + cellWidth(leaveTextOf)
+    const leaveCells = LABEL + 4 + (isTextOnly ? trackChars : trackPx / PX_PER_CELL) + cellWidth(leaveTextOf)
     const countText = `${boxes.done}/${boxes.total}`
     // a running or paused 🍅 shows at the row's end, so the time left needs no pane
     const tp = (await read($, pomo)) ?? freshPomo('') // a value never written reads as nothing in tests
     const pomoText = tp.status === 'idle' ? '' : `${tp.mode === 'rest' ? '☕' : '🍅'} ${pomoClock(remaining(tp, now))}${tp.status === 'paused' ? ' ⏸' : ''}`
     // same length as the 퇴근 row: its tag, 🏠 track 🚩 and time, less this row's tag and count
-    const gaugeCells = Math.max(boxes.total * 2, Math.round(leaveCells - cellWidth('☑ 오늘 할 일 ') - cellWidth(countText) - (pomoText ? cellWidth(pomoText) + 3 : 0)))
+    const gaugeCells = Math.max(boxes.total * 2, Math.round(leaveCells - LABEL - cellWidth(countText) - (pomoText ? cellWidth(pomoText) + 3 : 0)))
     const leaveBody =
       leave.kind === 'cheer' ? (
         <Text size="title" weight="bold" color={C.orange} wrap="truncate">{leave.text}</Text>
@@ -815,7 +814,7 @@ export const register: Register = on => {
       todo:
         boxes.total > 0 || pomoText ? (
           <Box key="todo" flexDirection="row" alignItems="center" columnGap={1} backgroundColor={C.navy} paddingX={1}>
-            {tag('☑', '오늘 할 일')}
+            {tag('할 일', 1)}
             {boxes.total === 0 ? null : isTextOnly ? (
               <Text mono wrap="truncate">
                 {boxGaugeText(boxes.done, boxes.total, gaugeCells).map((b, i) => (
@@ -836,7 +835,7 @@ export const register: Register = on => {
         ) : null,
       plan: work ? (
         <Box key="plan" flexDirection="row" flexWrap="wrap" alignItems="center" columnGap={1} backgroundColor={C.navy} paddingX={1}>
-          {tag('📋', '이번 작업')}
+          {tag('이번 작업', 1)}
           {isTerminal || !('Svg' in r) ? (
             <Text mono wrap="truncate">
               <Text color={C.teal}>{'▰'.repeat(workFill)}</Text>
@@ -852,7 +851,7 @@ export const register: Register = on => {
       ) : null,
       chips: nextChips.length === 0 ? null : (
         <Box key="next" flexDirection="row" flexWrap="wrap" alignItems="center" columnGap={1} rowGap={isTerminal ? 0 : 1} backgroundColor={C.navy} paddingX={1}>
-          {tag('⚡', '원터치 요청')}
+          {tag('요청', 1)}
           {nextChips.map((c, i) => (
             <Button
               key={`go${i}`}
@@ -864,12 +863,12 @@ export const register: Register = on => {
           ))}
         </Box>
       ),
-      usage: row(cells, 'usage'),
+      usage: row('사용량', cells, 'usage'),
       // hidden until something was read: no row of dashes where PowerShell is missing
-      sys: Object.values(s).some(v => v !== undefined) ? row(sysCells, 'sys') : null,
+      sys: Object.values(s).some(v => v !== undefined) ? row('컴퓨터', sysCells, 'sys') : null,
       leave: (
         <Box key="leave" flexDirection="row" flexWrap="wrap" alignItems="center" columnGap={1} backgroundColor={C.navy} paddingX={1}>
-          {tag('🏃', '퇴근')}
+          {tag('퇴근', 1)}
           {hasTrack ? track() : null}
           {leaveBody}
         </Box>
@@ -878,18 +877,15 @@ export const register: Register = on => {
 
     // The ⚙ button keeps the bottom-right corner, below every band.
     const gear = (
-      <Box key="gear" flexDirection="row" columnGap={1} paddingX={1} flexWrap="wrap" justifyContent="flex-end">
-        {cfg.enabled.spinner === false ? null : (
-          <Button key="toggle-spinner" onPress={() => update($, isCheering, v => v === false)}>
-            {isCheerOn ? '💬 스피너 켜짐' : '🔇 스피너 꺼짐'}
-          </Button>
-        )}
-        {cfg.enabled.shield === false ? null : (
-          // the switch says the state itself: no band row of its own
-          <Button key="toggle-shield" onPress={() => update($, isShielded, v => v === false)}>
-            {isMasked ? '🙈 모자이크 켜짐' : '👁 모자이크 꺼짐'}
-          </Button>
-        )}
+      <Box key="gear" flexDirection="row" alignItems="center" columnGap={1} paddingX={1} flexWrap="wrap" justifyContent="flex-end">
+        {/* the one switch for 모자이크 (the ⚙ one only shows it): 🙈 hiding and lit, 👁 showing; no 켜짐/꺼짐 words, so the row stays short */}
+        {cfg.enabled.shield === false ? null : [
+          <Button key="toggle-shield" variant={isMasked ? 'primary' : 'secondary'} onPress={() => update($, isShielded, v => v === false)}>
+            {isMasked ? '🙈 모자이크' : '👁 모자이크'}
+          </Button>,
+          // a rule between what switches here and what opens a panel
+          <Text key="rule" color={C.dots}>│</Text>,
+        ]}
         {cfg.enabled.tasks === false ? null : (
           <Button key="open-tasks" onPress={() => openTasks($)}>
             🗓 오늘 할 일
@@ -910,9 +906,8 @@ export const register: Register = on => {
       <Box flexDirection="column" paddingLeft={1} backgroundColor={C.navy}>
         {list.map(id =>
           nodes[id] === null ? null : (
-            // one line per band, held a touch taller than its 18px pictures by an invisible strut so rows breathe evenly;
-            // the button row (칩) keeps two lines on desktop, since a button stands taller than text
-            <Box key={`slot-${id}`} flexDirection="row" alignItems="center" backgroundColor={C.navy} {...(isTerminal || id !== 'chips' ? {} : { minHeight: 2 })}>
+            // one line per band, held a touch taller than its 18px pictures by an invisible strut so rows breathe evenly
+            <Box key={`slot-${id}`} flexDirection="row" alignItems="center" backgroundColor={C.navy}>
               {isTerminal || !('Svg' in r) ? null : <r.Svg source={STRUT} alt=" " width={1} height={ROW_PX} />}
               <Box flexDirection="column" flexGrow={1}>
                 {nodes[id]}
@@ -920,7 +915,8 @@ export const register: Register = on => {
             </Box>
           ),
         )}
-        <Box key="gear-row" {...buttonRow} flexDirection="row" alignItems="center" justifyContent="flex-end" backgroundColor={C.navy}>
+        {/* unpainted: 요청's buttons stand taller than their one line, and their foot shows through this row's empty top (the band's navy is behind) */}
+        <Box key="gear-row" {...buttonRow} flexDirection="row" alignItems="center" justifyContent="flex-end">
           {gear}
         </Box>
       </Box>

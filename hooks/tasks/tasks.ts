@@ -63,10 +63,22 @@ export const listFor = (tasks: readonly Task[], tab: Tab, today: string) =>
     .sort((a, b) => a.t.day.localeCompare(b.t.day) || (a.t.due ?? '99').localeCompare(b.t.due ?? '99') || a.i - b.i)
     .map(({ t }) => t)
 
-/** Today's progress: what was done today over that plus what is still open for today (overdue included). */
+/** The day a done task was ticked; one saved before doneOn existed counts as done on its own day. */
+const doneDay = (t: Task) => t.doneOn ?? t.day
+
+/** ○/● on a card: done stamps today, undone drops the stamp. */
+export const toggleDone = (t: Task, today: string): Task => {
+  if (t.done) {
+    const { doneOn: _, ...rest } = t
+    return { ...rest, done: false }
+  }
+  return { ...t, done: true, doneOn: today }
+}
+
+/** Today's progress: what was ticked today (whatever its day) over that plus what is still open for today (overdue included). */
 export const todayProgress = (tasks: readonly Task[], today: string) => {
   const open = listFor(tasks, '오늘', today).length
-  const done = tasks.filter(t => t.done && t.day === today).length
+  const done = tasks.filter(t => t.done && doneDay(t) === today).length
   const total = open + done
   return { done, total, ratio: total === 0 ? 0 : done / total }
 }
@@ -92,17 +104,22 @@ export const cleanTasks = (raw: unknown): Task[] =>
         (t): t is Task =>
           typeof t === 'object' && t !== null &&
           typeof t.id === 'string' && typeof t.title === 'string' && typeof t.day === 'string' &&
-          typeof t.done === 'boolean' && TAGS.includes(t.tag) && (t.due === undefined || typeof t.due === 'string'),
+          typeof t.done === 'boolean' && TAGS.includes(t.tag) && (t.due === undefined || typeof t.due === 'string') &&
+          (t.doneOn === undefined || typeof t.doneOn === 'string'),
       )
     : []
 
-/** Drops done tasks whose day is more than `days` before today, so the saved list does not grow forever. */
+/** Drops done tasks ticked more than `days` before today, so the saved list does not grow forever. */
 export const pruneDone = (tasks: readonly Task[], nowMs: number, days = 30) => {
   const d = new Date(nowMs)
   d.setDate(d.getDate() - days)
   const cutoff = dayOf(d.getTime())
-  return tasks.filter(t => !t.done || t.day >= cutoff)
+  return tasks.filter(t => !t.done || doneDay(t) >= cutoff)
 }
+
+/** A done card's `✓ 11/25 완료`; nothing for one ticked before the day was kept. */
+export const doneWhen = (t: Task) =>
+  t.done && t.doneOn ? `✓ ${Number(t.doneOn.slice(5, 7))}/${Number(t.doneOn.slice(8, 10))} 완료` : ''
 
 /** The card's date line: `⏰ 15:00`, with the day when it is not today. */
 export const whenOf = (t: Task, today: string) => {

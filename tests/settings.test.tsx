@@ -1,4 +1,5 @@
 import { expect, test } from 'claude-code/testing'
+import { iconless } from '../hooks/panes'
 
 import { BANDS, DEFAULT_SETTINGS, normalize, shift, toggle, visible } from '../hooks/band/layout'
 
@@ -65,6 +66,7 @@ const wire = (on: any, seed: Record<string, unknown> = {}) => {
 }
 
 for (const surface of ['desktop', 'terminal'] as const) {
+  const ic = (t: string) => (surface === 'terminal' ? iconless(t) : t) // the terminal drops label icons
   test(`panel: switches and ▲▼ apply at once and are saved; no reset button (${surface})`, async ($, on) => {
     const { kept } = wire(on)
     const saved = () => kept.get('mods-settings') as { enabled: Record<string, boolean>; order: string[] }
@@ -72,18 +74,21 @@ for (const surface of ['desktop', 'terminal'] as const) {
     const panel = () => $.ui.mount({ ...PANE, surface })
 
     let ui = await panel()
-    expect(await ui.findAll({ type: 'Button', text: /^켜짐$/ })).toHaveLength(10) // six bands, 모자이크, the spinner, the tasks pane and the control centre (no memo switch)
+    expect(await ui.findAll({ type: 'Button', text: /^● 켜짐$/ })).toHaveLength(10) // six bands, 모자이크, the spinner, the tasks pane and the control centre (no memo switch)
     expect(await ui.find({ key: 'cell-0' })).toBeUndefined() // no 3x3 board any more
     const names = (await ui.findAll({ type: 'Text' })).map(t => t.text)
-    expect(names.some(t => t.endsWith('⚡ 원터치 요청 버튼'))).toBe(true) // the names match the panes and buttons
-    expect(names).toContain('🗓 오늘 할 일 버튼')
-    expect(names).toContain('🎛 Claude 도구 버튼')
+    expect(names.some(t => t.endsWith(ic('⚡ 원터치 요청 버튼')))).toBe(true) // the names match the panes and buttons
+    expect(names).toContain(ic('🗓 오늘 할 일 버튼'))
+    expect(names).toContain(ic('🎛 Claude 도구 버튼'))
     // two groups: what a switch does is in its heading
     const at = (t: string) => names.indexOf(t)
-    expect(at('기능')).toBeLessThan(at('💬 동기부여 스피너'))
-    expect(at('💬 동기부여 스피너')).toBeLessThan(at('🙈 모자이크 (이메일·전화번호)'))
-    expect(at('🙈 모자이크 (이메일·전화번호)')).toBeLessThan(at('버튼 줄'))
-    expect(at('버튼 줄')).toBeLessThan(at('🗓 오늘 할 일 버튼'))
+    expect(at(ic('🎨 색상'))).toBeLessThan(at(ic('⏰ 근무 시간'))) // 색상, then 근무 시간, then 원터치, above 기능
+    expect(at(ic('⏰ 근무 시간'))).toBeLessThan(at(ic('⚡ 원터치 요청 버튼')))
+    expect(at(ic('⚡ 원터치 요청 버튼'))).toBeLessThan(at('기능'))
+    expect(at('기능')).toBeLessThan(at(ic('💬 동기부여 스피너')))
+    expect(at(ic('💬 동기부여 스피너'))).toBeLessThan(at('버튼 줄'))
+    expect(at('버튼 줄')).toBeLessThan(at(ic('🙈 모자이크 (이메일·전화번호) 버튼'))) // 모자이크 switches from its button: ⚙ only shows it
+    expect(at(ic('🙈 모자이크 (이메일·전화번호) 버튼'))).toBeLessThan(at(ic('🗓 오늘 할 일 버튼')))
     expect(names).not.toContain('그 밖의 모드')
     expect(names.some(t => /다음 할 일 버튼 \(|오늘의 작업 \(/.test(t))).toBe(false)
     await ui.press({ key: 'sw-sys' })
@@ -103,7 +108,7 @@ for (const surface of ['desktop', 'terminal'] as const) {
     await ui.unmount()
 
     ui = await panel()
-    expect((await ui.find({ type: 'Text', text: /^1\./ }))?.text).toBe('1. ☑ 오늘 할 일 게이지 (/todo)') // 🏃 moved down a place
+    expect((await ui.find({ type: 'Text', text: /^1\./ }))?.text).toBe(`1. ${ic('☑ 오늘 할 일 게이지')}`) // 🏃 moved down a place; no (/todo), and the icon only off the terminal
     expect(await ui.find({ key: 'reset' })).toBeUndefined() // 처음 배치로 되돌리기 is gone
     expect((await ui.findAll({ type: 'Button' })).map(b => b.text)).not.toContain('처음 배치로 되돌리기')
     await ui.unmount()
@@ -126,8 +131,8 @@ for (const surface of ['desktop', 'terminal'] as const) {
     expect(at(/다음 할 일/)).toBeLessThan(at(/퇴근/))
     expect(at(/퇴근/)).toBeLessThan(at(/SESSION/))
     const buttons = (await ui.findAll({ type: 'Button' })).map(b => b.key)
-    expect(buttons.at(-5)).toBe('toggle-spinner') // the bottom row: 💬 스피너 switch…
-    expect(buttons.at(-4)).toBe('toggle-shield') // …모자이크 switch…
+    expect(buttons).not.toContain('toggle-spinner') // the spinner switches in ⚙ only
+    expect(buttons.at(-4)).toBe('toggle-shield') // the bottom row: 모자이크 switch…
     expect(buttons.at(-3)).toBe('open-tasks') // …📋 오늘의 작업
     expect(buttons.at(-2)).toBe('open-control') // …🎛 제어센터
     expect(buttons).not.toContain('open-memo') // the 📝 메모 button is gone
@@ -149,6 +154,7 @@ test('two windows: a switch here keeps the colour another window chose since thi
 })
 
 for (const surface of ['desktop', 'terminal'] as const) {
+  const ic = (t: string) => (surface === 'terminal' ? iconless(t) : t) // the terminal drops label icons
   test(`⚙ field: work hours are set here, a bad time changes nothing; no name or minute fields (${surface})`, async ($, on) => {
     const { mem, kept } = wire(on)
     const toasts: string[] = []

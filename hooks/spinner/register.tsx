@@ -4,12 +4,10 @@ import { freshPomo } from '../tasks/pomodoro'
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-// Owned by usage-band's settings panel; read here only for the spinner's on/off switch.
+// Owned by usage-band's settings panel; read here only for the spinner's on/off switch (its only one).
 const settings = atom({ plugin: 'khangte-desk-mods', key: 'settings' } as const, DEFAULT_SETTINGS as Settings)
 // Owned by today-tasks; read here only to show its countdown.
 const pomo = atom({ plugin: 'khangte-desk-mods', key: 'pomo' } as const, freshPomo(''))
-// The band's 💬 button: off for this conversation only, the ⚙ switch untouched.
-const isCheering = atom({ plugin: 'khangte-desk-mods', key: 'isCheering' } as const, true)
 const turn = atom({ plugin: 'khangte-desk-mods', key: 'turn' } as const, { sec: 0, tools: 0, base: 0 })
 
 export const PHRASES = [
@@ -75,7 +73,6 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
     if (((await read($, settings)) as Settings | null)?.enabled?.spinner === false) return next(e)
-    if ((await read($, isCheering)) === false) return next(e)
     const t = await read($, turn)
     // The line replaces the engine's word; its own elapsed time and tokens stay beside it.
     const tomato = pomoSuffix(await read($, pomo), await $.clock.now())

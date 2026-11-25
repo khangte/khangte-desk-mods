@@ -18,8 +18,8 @@ export const BANDS = [
 export const FEATURES = [
   // 기능: switches what it does
   { id: 'spinner', name: '동기부여 스피너', icon: '💬', group: 'feature' },
-  { id: 'shield', name: '모자이크 (이메일·전화번호)', icon: '🙈', group: 'feature' }, // its button sits in the bottom row too
-  // 버튼 줄: switches the pane's button in the bottom row (and the pane)
+  // 버튼 줄: switches a button in the bottom row (and the pane it opens); 모자이크's button is its on/off, hidden means off
+  { id: 'shield', name: '모자이크 (이메일·전화번호)', icon: '🙈', group: 'button' },
   { id: 'tasks', name: '오늘 할 일', icon: '🗓', group: 'button' },
   { id: 'control', name: 'Claude 도구', icon: '🎛', group: 'button' },
 ] as const

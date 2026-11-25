@@ -1,4 +1,5 @@
 import { expect, mock, test } from 'claude-code/testing'
+import { iconless } from '../hooks/panes'
 
 const PANE = {
   plugin: 'khangte-desk-mods', component: 'Pane', requestId: 'control-center',
@@ -42,6 +43,7 @@ const wire = (on: any, store: Record<string, unknown> = {}) => {
 }
 
 for (const surface of ['desktop', 'terminal'] as const) {
+  const ic = (t: string) => (surface === 'terminal' ? iconless(t) : t) // the terminal drops label icons
   test(`memo: typed while working, kept in the store, pulses when the answer ends, fills without sending (${surface})`, async ($, on) => {
     const time = mock.clock(on, { now: new Date(2026, 10, 6, 10).getTime() })
     const w = wire(on, { memo: '어제 적어 둔 메모' })
@@ -62,14 +64,17 @@ for (const surface of ['desktop', 'terminal'] as const) {
     // and ⚙'s quick-request field keeps what is half typed across a redraw
     const SET = { ...PANE, requestId: 'mods-settings' } as const
     ui = await $.ui.mount({ ...SET, surface })
-    await ui.input({ key: 'quick-add', text: '/ponytail', kind: 'change' })
+    const addKey = async (u: any) => ((await u.findAll({ type: 'Input' })) as { key?: string }[]).find(b => b.key?.startsWith('quick-add-'))!.key!
+    await ui.input({ key: await addKey(ui), text: '/ponytail', kind: 'change' })
     await ui.unmount()
     ui = await $.ui.mount({ ...SET, surface })
-    expect((await ui.find({ key: 'quick-add' }))?.props.value).toBe('/ponytail')
-    await ui.input({ key: 'quick-add', text: '/ponytail-audit' }) // Enter: added, field cleared
+    expect((await ui.find({ key: await addKey(ui) }))?.props.value).toBe('/ponytail')
+    const typedIn = await addKey(ui)
+    await ui.input({ key: typedIn, text: '/ponytail-audit' }) // Enter: added, field cleared
     await ui.unmount()
     ui = await $.ui.mount({ ...SET, surface })
-    expect((await ui.find({ key: 'quick-add' }))?.props.value).toBe('')
+    expect(await addKey(ui)).not.toBe(typedIn) // a fresh field: the host would keep the typed text in the old one
+    expect((await ui.find({ key: await addKey(ui) }))?.props.value).toBe('')
     await ui.unmount()
 
     // Claude is still working: nothing pulses yet
@@ -88,7 +93,7 @@ for (const surface of ['desktop', 'terminal'] as const) {
       await time.advance(500)
       ui = await $.ui.mount({ ...PANE, surface })
       const b = await ui.find({ key: 'memo-fill' })
-      expect(b?.text).toBe('✨ 입력창에 채우기')
+      expect(b?.text).toBe(ic('✨ 입력창에 채우기'))
       seen.add(b?.props.variant)
       await ui.unmount()
     }

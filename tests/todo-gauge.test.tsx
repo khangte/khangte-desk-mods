@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { boxGaugeSvg, cellWidth, todayTodo } from '../hooks/band/register'
+import { boxGaugeSvg, cellWidth, LABEL, todayTodo } from '../hooks/band/register'
 
 const NOW = new Date(2026, 10, 6, 14, 0, 0).getTime() // Fri 2026-11-06 14:00, local: mid-workday
 const TODAY = '2026-11-06'
@@ -56,15 +56,15 @@ for (const surface of ['desktop', 'terminal'] as const) {
         const gauge = (await ui.findAll({ type: 'Svg' })).find(s => String(s.props.alt).startsWith('오늘 할 일'))!
         const dog = (await ui.findAll({ type: 'Svg' })).find(s => String(s.props.alt).startsWith('퇴근까지'))!
         expect(gauge.props.height).toBe(10) // slim
-        const todoCells = cellWidth('☑ 오늘 할 일 ') + Number(gauge.props.width) / 8 + cellWidth('3/5')
-        const leaveCells = cellWidth('🏃 퇴근 ') + 4 + Number(dog.props.width) / 8 + cellWidth(leaveText)
+        const todoCells = LABEL + Number(gauge.props.width) / 8 + cellWidth('3/5')
+        const leaveCells = LABEL + 4 + Number(dog.props.width) / 8 + cellWidth(leaveText)
         expect(Math.abs(todoCells - leaveCells)).toBeLessThanOrEqual(1) // the same length, give or take rounding
       } else {
         const gauge = texts.find(t => /^█/.test(t) && !t.includes('🏠'))!
         expect(gauge.split(' ')).toHaveLength(5) // five boxes
         const track = texts.find(t => t.startsWith('🏠'))!
-        const todoCells = cellWidth('☑ 오늘 할 일 ') + cellWidth(gauge) + cellWidth('3/5')
-        const leaveCells = cellWidth('🏃 퇴근 ') + cellWidth(track) + cellWidth(leaveText)
+        const todoCells = LABEL + cellWidth(gauge) + cellWidth('3/5')
+        const leaveCells = LABEL + cellWidth(track) + cellWidth(leaveText)
         expect(Math.abs(todoCells - leaveCells)).toBeLessThanOrEqual(4) // block runs divide unevenly
       }
       await ui.unmount()

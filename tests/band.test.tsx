@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 
-import { chips, dogSvg, fit, left, parseSys, weather } from '../hooks/band/register'
+import { cellWidth, chips, dogSvg, fit, left, parseSys } from '../hooks/band/register'
 
 const NOW = Date.parse('2026-11-05T10:00:00Z')
 const USAGE = {
@@ -13,15 +13,14 @@ const band = (bodyColumns: number) => ({
   props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns, scroll: { offset: 0, bodyRows: 10 } },
 }) as const
 
-// Cells the drawn row takes, counted from what it shows (emoji as 2 cells, an Svg by its px).
+// Cells the drawn row takes, counted from what it shows (Hangul as 2 cells, an Svg by its px).
 const width = (texts: string[], svgPx: number[]) =>
-  texts.join('').replace(/[⏱📅]/gu, '  ').length + svgPx.reduce((a, b) => a + b / 8, 0)
+  cellWidth(texts.join('')) + svgPx.reduce((a, b) => a + b / 8, 0)
 
 test('helpers', () => {
   expect(left('2026-11-05T12:00:00Z', NOW)).toBe('2h00')
   expect(left('2026-11-09T03:00:00Z', NOW)).toBe('3d17h')
   expect(left(undefined, NOW)).toBe('–')
-  expect([weather(10), weather(50), weather(70), weather(85), weather()]).toEqual(['☀', '☁', '☂', '⚡', '–'])
   expect(fit(300, 15)).toEqual({ bar: 15, showReset: true })
   expect(fit(90, 15).showReset).toBe(true)
   expect(fit(70, 15).showReset).toBe(false)
@@ -36,8 +35,8 @@ for (const surface of ['terminal', 'desktop'] as const) {
     for (const columns of [200, 120, 90, 75, 64]) {
       const ui = await $.ui.mount({ ...band(columns), surface })
       const texts = (await ui.findAll({ type: 'Text' })).filter(t => t.children.every(c => typeof c === 'string')).map(t => t.text)
-      texts.splice(texts.findIndex(t => t.startsWith('🖥'))) // the system row is below; this test counts the usage row
-      texts.splice(0, texts.findIndex(t => t.startsWith('☀'))) // and the 퇴근 row above
+      texts.splice(texts.findIndex(t => t.startsWith('컴퓨터'))) // the system row is below; this test counts the usage row
+      texts.splice(0, texts.findIndex(t => t.startsWith('사용량'))) // and the 퇴근 row above
       const svgs = (await ui.findAll({ type: 'Svg' })).filter(s => s.props.alt !== ' ').slice(1, 4) // [0] is the dog's; row struts left out
       const all = texts.join('')
       const bar = surface === 'desktop' ? (svgs[0]?.props.width as number) : (all.match(/[█░]+/)?.[0].length ?? 0)
@@ -46,7 +45,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
       if (surface === 'terminal') expect(all).toMatch(/[█░]/) // text bars, not pictures
       expect(all).toContain('CONTEXT [')
       expect(all).toContain('54%')
-      expect(all).toContain('☀')
+      expect(all).toContain('사용량') // the row's label, no weather icon
       expect(bar).toBeLessThanOrEqual(lastBar) // bars shrink first
       lastBar = bar
       if (surface === 'desktop') {
@@ -95,12 +94,28 @@ test('system row shows, one row each at narrow width', async ($, on) => {
     expect(all).toContain('CPU [')
     expect(all).toContain('23%')
     expect(all).toContain('11.2/16GB')
-    expect(all).toContain('82%')
+    expect(all).toContain('BAT [') // a bar like the others, its % beside it
+    expect(all).toContain(' 82%')
     await ui.unmount()
   }
 })
 
-test('polls every 15 seconds without a model call; backs off while PowerShell fails, and comes back', async ($, on) => {
+test('battery bar warns when low, not when full', async ($, on) => {
+  let battery = 95
+  on('state.get', (_, e) => ({ value: { value: e.key === 'sys' ? { cpu: 10, battery } : null, version: 1 } }))
+  on('clock.now', () => ({ value: NOW }))
+  const batBar = async () => {
+    const ui = await $.ui.mount({ ...band(200), surface: 'desktop' })
+    const svg = (await ui.findAll({ type: 'Svg' })).find(s => String(s.props.alt).startsWith('BAT'))
+    await ui.unmount()
+    return String(svg?.props.source)
+  }
+  expect(await batBar()).not.toContain('#fb923c') // full: no warning
+  battery = 12
+  expect(await batBar()).toContain('#fb923c') // low: orange
+})
+
+test('polls every 10 seconds without a model call; backs off while PowerShell fails, and comes back', async ($, on) => {
   mock.store(on)
   on('command.register', () => ({ value: { command: 'workhours' } }))
   on('state.get', () => ({ value: { value: undefined, version: 0 } }))
@@ -114,24 +129,24 @@ test('polls every 15 seconds without a model call; backs off while PowerShell fa
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
   await time.settle()
   expect(runs).toBe(1) // the first poll, at the start
-  await time.advance(45_000)
-  expect(runs).toBe(4) // then one every 15s
+  await time.advance(30_000)
+  expect(runs).toBe(4) // then one every 10s
 
   isFailing = true
-  await time.advance(45_000) // three failures in a row
+  await time.advance(30_000) // three failures in a row
   runs = 0
-  await time.advance(120_000) // 8 ticks
+  await time.advance(80_000) // 8 ticks
   expect(runs).toBe(2) // backed off: one try in four, not stopped for good
   isFailing = false
-  await time.advance(60_000) // the next try succeeds...
+  await time.advance(40_000) // the next try succeeds...
   runs = 0
-  await time.advance(45_000)
+  await time.advance(30_000)
   expect(runs).toBe(3) // ...and every tick polls again
 })
 
 const DOG_PX = ['#B07A42', '#6E4123', '#1B1B1B', '#E2C08E']
 const rectsOf = (svg: string) => [...svg.matchAll(/<rect x="(-?\d+)" y="(\d+)" width="(\d+)" height="2" fill="(#\w+)"/g)]
-const dogOnly = (svg: string) => rectsOf(svg).filter(m => !['#EF4444', '#aab3c5', '#fb923c'].includes(m[4]!)) // not the track
+const dogOnly = (svg: string) => rectsOf(svg).filter(m => !['#60a5fa', '#aab3c5', '#fb923c'].includes(m[4]!)) // not the track
 
 test('the dog is the user pixel map at 30x18, only the two leg rows move', () => {
   const a = dogOnly(dogSvg(0, 200, 0))
@@ -178,9 +193,9 @@ for (const surface of ['desktop', 'terminal'] as const) {
       expect(noon.x).toBeGreaterThan(morning.x) // walked right
       expect(late.x).toBeGreaterThan(noon.x)
       expect(late.source).toContain('fill="#fb923c"') // orange trail in the last half hour
-      expect(noon.source).toContain('fill="#EF4444"') // the usual red trail
-      expect(after.source).toBe(dogSvg(after.x, 240, 0, '#EF4444')) // at the flag, legs still
-      expect(noon.source).toBe(dogSvg(noon.x, 240, 1, '#EF4444')) // mid-walk frame
+      expect(noon.source).toContain('fill="#60a5fa"') // the usual blue trail: red is kept for warnings
+      expect(after.source).toBe(dogSvg(after.x, 240, 0, '#60a5fa')) // at the flag, legs still
+      expect(noon.source).toBe(dogSvg(noon.x, 240, 1, '#60a5fa')) // mid-walk frame
     } else {
       expect(noon.steps).toBeGreaterThan(morning.steps)
     }

@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 import type { Task } from '../types'
 
-import { cleanTasks, dayOf, greeting, listFor, pairs, parseTodo, pruneDone, tabOf, todayProgress, whenOf } from '../hooks/tasks/tasks'
+import { cleanTasks, dayOf, greeting, listFor, pairs, parseTodo, pruneDone, tabOf, todayProgress, toggleDone, doneWhen, whenOf } from '../hooks/tasks/tasks'
 
 const NOW = new Date(2026, 10, 6, 9, 0, 0).getTime() // Fri 2026-11-06 09:00
 const TODAY = '2026-11-06'
@@ -49,6 +49,26 @@ test('tabs, order, pairs, card time line, and a saved list read back', () => {
   expect(todayProgress([], TODAY).total).toBe(0)
 })
 
+test("an old task undone then done again today stays in today's gauge", () => {
+  const two: Task[] = [
+    { id: 'x', title: '하나', tag: '업무', day: TODAY, done: false },
+    { id: 'y', title: '둘', tag: '업무', day: TODAY, done: false },
+  ]
+  const old: Task = { id: 'o', title: '지난 일', tag: '업무', day: '2026-11-01', done: true } // saved before doneOn: done on its own day
+  expect(todayProgress([...two, old], TODAY)).toMatchObject({ done: 0, total: 2 })
+  const undone = toggleDone(old, TODAY)
+  expect(undone).toEqual({ id: 'o', title: '지난 일', tag: '업무', day: '2026-11-01', done: false })
+  expect(todayProgress([...two, undone], TODAY)).toMatchObject({ done: 0, total: 3 })
+  const redone = toggleDone(undone, TODAY)
+  expect(redone.doneOn).toBe(TODAY)
+  expect(doneWhen(redone)).toBe('✓ 11/6 완료') // the card shows when it was ticked
+  expect(doneWhen(old)).toBe('') // ticked before the day was kept
+  expect(doneWhen(undone)).toBe('')
+  expect(todayProgress([...two, redone], TODAY)).toMatchObject({ done: 1, total: 3 }) // was 0/2
+  expect(cleanTasks([redone])).toEqual([redone])
+  expect(pruneDone([{ ...redone, day: '2026-01-01' }], NOW)).toHaveLength(1) // kept by the day it was ticked, not its own
+})
+
 /** In-memory $.state and $.store, as the host keeps them. */
 const wire = (on: any, seed: Record<string, unknown> = {}) => {
   const mem = new Map<string, { value: unknown; version: number }>()
@@ -74,6 +94,8 @@ for (const surface of ['desktop', 'terminal'] as const) {
     const filled: string[] = []
     on('ui.open', (_: unknown, e: { id: string }) => (opened.push(e.id), { value: { isPlaced: true } }))
     on('prompt.fill', (_: unknown, e: { text: string }) => (filled.push(e.text), { isFilled: true, cursor: e.text.length }))
+    const toasts: string[] = []
+    on('ui.toast', (_: unknown, e: { text: string }) => (toasts.push(e.text), { value: undefined }))
     await $.session.start({ cwd: '/', surface, isInteractive: true }) // reads the saved list
 
     const pane = () => $.ui.mount({ ...PANE, surface }) // a fresh mount stands for the host's redraw
@@ -93,8 +115,21 @@ for (const surface of ['desktop', 'terminal'] as const) {
 
     await ui.press({ key: 'done-a' })
     expect((kept.get('tasks') as Task[]).find(t => t.id === 'a')?.done).toBe(true)
-    await ui.press({ key: 'add' })
-    expect(filled).toEqual(['/todo '])
+    // the pane's own field adds as /todo does, then clears; a bad line stays to fix
+    const addKey = async () => ((await ui.findAll({ type: 'Input' })) as { key?: string }[]).find(b => b.key?.startsWith('todo-add-'))!.key!
+    expect(await ui.find({ key: 'add' })).toBeUndefined() // no ＋: the field is the way in
+    const before = await addKey()
+    await ui.input({ key: before, text: '#급함' })
+    expect(toasts.at(-1)).toContain('할 일 이름이 없어요')
+    expect(await addKey()).toBe(before)
+    await ui.input({ key: before, text: '보고서 쓰기 16:00 #급함' })
+    expect(toasts.at(-1)).toBe('추가했어요: 보고서 쓰기 · ⏰ 16:00 · #급함')
+    expect((kept.get('tasks') as Task[]).at(-1)).toMatchObject({ title: '보고서 쓰기', due: '16:00', tag: '급함', done: false })
+    expect(filled).toEqual([])
+    await ui.unmount()
+    ui = await pane()
+    expect(await addKey()).not.toBe(before) // a fresh, empty field
+    expect((await ui.find({ key: await addKey() }))?.props.value).toBe('')
     // ✕ deletes a card for good
     expect(await ui.find({ key: 'del-b' })).toBeDefined()
     await ui.press({ key: 'del-b' })
@@ -102,7 +137,7 @@ for (const surface of ['desktop', 'terminal'] as const) {
     await ui.unmount()
 
     ui = await pane()
-    expect((await ui.findAll({ type: 'Text' })).map(t => t.text)).toContain('오늘 끝낼 일 2개') // a done and b deleted
+    expect((await ui.findAll({ type: 'Text' })).map(t => t.text)).toContain('오늘 끝낼 일 3개') // a done and b deleted, 보고서 쓰기 added
     await ui.press({ key: 'tab-완료' })
     await ui.unmount()
 
@@ -133,7 +168,7 @@ test('🗓 오늘 할 일: greeting, then 🍅 집중 타이머, then ☑ 할 �
   expect(order.every(i => i >= 0)).toBe(true)
   expect([...order].sort((x, y) => x - y)).toEqual(order)
   expect(at('다음 할 일 버튼')).toBe(-1)
-  expect(await ui.find({ key: 'quick-add' })).toBeUndefined()
+  expect((await ui.findAll({ type: 'Input' })).some((b: { key?: string }) => b.key?.startsWith('quick-add-'))).toBe(false)
   await ui.unmount()
 })
 

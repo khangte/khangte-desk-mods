@@ -1,4 +1,5 @@
 import { expect, mock, test } from 'claude-code/testing'
+import { iconless } from '../hooks/panes'
 
 import type { Pomo } from '../types'
 
@@ -73,6 +74,7 @@ const wire = (on: any) => {
 }
 
 for (const surface of ['desktop', 'terminal'] as const) {
+  const ic = (t: string) => (surface === 'terminal' ? iconless(t) : t) // the terminal drops label icons
   test(`a 1-minute run: focus ripens, ends with a notice, rests, comes back to focus; back to 25 (${surface})`, async ($, on) => {
     const time = mock.clock(on, { now: T0 })
     const { mem, kept } = wire(on)
@@ -92,7 +94,7 @@ for (const surface of ['desktop', 'terminal'] as const) {
     let { ui, texts } = await pane()
     expect(texts).toContain('01:00')
     expect(texts.some(t => t.startsWith('집중 1분 · 완료 아직 없음'))).toBe(true)
-    expect((await ui.find({ key: 'pomo-toggle' }))?.text).toBe('▶ 시작') // stopped: one button that starts
+    expect((await ui.find({ key: 'pomo-toggle' }))?.text).toBe(ic('▶ 시작')) // stopped: one button that starts
     expect(await ui.find({ key: 'pomo-start' })).toBeUndefined()
     expect(await ui.find({ key: 'pomo-pause' })).toBeUndefined()
     await ui.press({ key: 'pomo-toggle' })
@@ -124,14 +126,14 @@ for (const surface of ['desktop', 'terminal'] as const) {
 
     // pause holds the time; ↺ goes back to a stopped focus; then restore 25 / 5
     ;({ ui } = await pane())
-    expect((await ui.find({ key: 'pomo-toggle' }))?.text).toBe('⏸ 일시정지') // running: the same button pauses
+    expect((await ui.find({ key: 'pomo-toggle' }))?.text).toBe(ic('⏸ 일시정지')) // running: the same button pauses
     await ui.press({ key: 'pomo-toggle' })
     await ui.unmount()
     const held = remaining(pomo(), 0)
     await time.advance(20_000)
     expect(remaining(pomo(), 0)).toBe(held)
     ;({ ui } = await pane())
-    expect((await ui.find({ key: 'pomo-toggle' }))?.text).toBe('▶ 시작') // paused: it offers to start again
+    expect((await ui.find({ key: 'pomo-toggle' }))?.text).toBe(ic('▶ 시작')) // paused: it offers to start again
     await ui.press({ key: 'pomo-toggle' })
     await ui.unmount()
     expect(pomo()).toMatchObject({ status: 'running', leftMs: held }) // carries on from where it stopped
@@ -151,6 +153,7 @@ for (const surface of ['desktop', 'terminal'] as const) {
 }
 
 for (const surface of ['desktop', 'terminal'] as const) {
+  const ic = (t: string) => (surface === 'terminal' ? iconless(t) : t) // the terminal drops label icons
   test(`minute fields set focus and rest; a bad number changes nothing (${surface})`, async ($, on) => {
     mock.clock(on, { now: T0 })
     const { mem, kept } = wire(on)

@@ -71,13 +71,13 @@ for (const surface of ['desktop', 'terminal'] as const) {
 
     // the bar's button: label says on, pressing reveals
     const bar = await $.ui.mount({ ...BAND, surface })
-    expect((await bar.find({ key: 'toggle-shield' }))?.text).toBe('🙈 모자이크 켜짐')
+    expect((await bar.find({ key: 'toggle-shield' }))?.text).toBe('🙈 모자이크')
     await bar.press({ key: 'toggle-shield' })
     await bar.unmount()
     expect(await drawn()).toBe(REPLY) // shown as written
 
     const bar2 = await $.ui.mount({ ...BAND, surface })
-    expect((await bar2.find({ key: 'toggle-shield' }))?.text).toBe('👁 모자이크 꺼짐')
+    expect((await bar2.find({ key: 'toggle-shield' }))?.text).toBe('👁 모자이크')
     await bar2.press({ key: 'toggle-shield' })
     await bar2.unmount()
     expect(await drawn()).toContain('●●● 가림') // masked again
@@ -94,7 +94,7 @@ for (const surface of ['desktop', 'terminal'] as const) {
     on('ui.open', (_: unknown, e: { id: string }) => (opened.push(e.id), { value: { isPlaced: true } }))
     const ui = await $.ui.mount({ ...BAND, surface })
     expect((await ui.findAll({ type: 'Box' })).some(b => b.key === 'shield' || b.key === 'slot-shield')).toBe(false)
-    expect((await ui.find({ key: 'toggle-shield' }))?.text).toBe('🙈 모자이크 켜짐') // the button says the state
+    expect((await ui.find({ key: 'toggle-shield' }))?.text).toBe('🙈 모자이크') // the button says the state
     await ui.press({ key: 'open-tasks' })
     expect(opened).toEqual(['today-tasks']) // opens 🗓 오늘 할 일 directly
     expect(ran).toEqual([]) // no /todo run
@@ -103,12 +103,12 @@ for (const surface of ['desktop', 'terminal'] as const) {
 }
 
 for (const surface of ['desktop', 'terminal'] as const) {
-  test(`band rows take one line; only button rows take two on desktop (${surface})`, async ($, on) => {
+  test(`band rows take one line; only the bottom button row takes two on desktop (${surface})`, async ($, on) => {
     wire(on).set('sys', { value: { cpu: 10 }, version: 1 }) // the 컴퓨터 상태 row shows once something was read
     const ui = await $.ui.mount({ ...BAND, surface })
     const slots = (await ui.findAll({ type: 'Box' })).filter(b => b.key?.startsWith('slot-'))
     expect(slots.length).toBeGreaterThanOrEqual(3) // 퇴근, 사용량, 컴퓨터 상태 at least
-    expect(slots.filter(s => s.key !== 'slot-chips').every(s => s.props.minHeight === undefined)).toBe(true)
+    expect(slots.every(s => s.props.minHeight === undefined)).toBe(true) // 요청 too: its buttons' foot shows through the bottom row's empty top
     const svgs = await ui.findAll({ type: 'Svg' })
     expect(svgs.filter(s => s.props.alt !== ' ').every(s => Number(s.props.height) <= 18)).toBe(true) // no picture taller than a line
     // a 22px strut in every band row on desktop: a little air, the same for each row

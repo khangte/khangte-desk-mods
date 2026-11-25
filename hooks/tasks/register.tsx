@@ -1,4 +1,4 @@
-import { showPane } from '../panes'
+import { iconless, showPane } from '../panes'
 import type { Settings } from '../../types'
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
@@ -9,7 +9,7 @@ import {
   DEFAULT_MINUTES, TOMATO_SIZE, advance, clock, freshPomo, parseMinutes, pause, progress, remaining, reset, rollDay, skip, start, tomatoSvg,
 } from './pomodoro'
 
-import { TABS, cleanTasks, dayOf, greeting, listFor, pairs, parseTodo, pruneDone, tabOf, thinBar, todayProgress, whenOf } from './tasks'
+import { TABS, cleanTasks, dayOf, greeting, listFor, pairs, parseTodo, pruneDone, tabOf, thinBar, todayProgress, toggleDone, doneWhen, whenOf } from './tasks'
 import { DEFAULT_SETTINGS } from '../band/layout'
 import { C, usePalette } from '../band/control'
 
@@ -105,6 +105,22 @@ async function applyMinute($: EngineInterface, k: 'focus' | 'rest', v: string) {
   $.ui.toast(`${k === 'focus' ? '집중' : '휴식'} 시간을 ${n}분으로 바꿨어요`)
 }
 
+/** What is typed in the pane's add field; a new key per add, as the host keeps typed text over a redraw that draws the same value. */
+let todoDraft = ''
+let todoAdds = 0
+
+/** `/todo` and the pane's add field both come here: parse, save, show its tab. The reply text, or the parse error. */
+async function addTask($: EngineInterface, text: string): Promise<{ text: string; isAdded: boolean }> {
+  const now = await $.clock.now()
+  const p = parseTodo(text, now)
+  if ('error' in p) return { text: p.error, isAdded: false }
+  const list = await read($, tasks)
+  const task: Task = { id: `${now}-${list.length}`, ...p, done: false }
+  await save($, l => [...l, task])
+  await update($, tab, () => tabOf(task, dayOf(now)))
+  return { text: `추가했어요: ${task.title} · ${whenOf(task, dayOf(now))} · #${task.tag}`, isAdded: true }
+}
+
 async function openPane($: EngineInterface) {
   await showPane($, PANE, TITLE)
 }
@@ -116,15 +132,9 @@ export const register: Register = on => {
       await openPane($)
       return { text: `${TITLE} 패널을 열었어요.` }
     }
-    const now = await $.clock.now()
-    const p = parseTodo(e.args, now)
-    if ('error' in p) return { text: p.error }
-    const list = await read($, tasks)
-    const task: Task = { id: `${now}-${list.length}`, ...p, done: false }
-    await save($, l => [...l, task])
-    await update($, tab, () => tabOf(task, dayOf(now)))
-    await openPane($)
-    return { text: `추가했어요: ${task.title} · ${whenOf(task, dayOf(now))} · #${task.tag}` }
+    const r = await addTask($, e.args)
+    if (r.isAdded) await openPane($)
+    return { text: r.text }
   })
 
   on('command.run', { command: 'pomodoro' }, async ($, e) => {
@@ -149,6 +159,7 @@ export const register: Register = on => {
     const current = await read($, tab)
     const today = dayOf(await $.clock.now())
     const isTerminal = e.surface === 'terminal'
+    const ic = (s: string) => (isTerminal ? iconless(s) : s) // icons on desktop only
     // Desktop buttons stand taller than a line: rows that hold them get two lines.
     const line = isTerminal ? {} : { minHeight: 2 }
     const gap = isTerminal ? 0 : 1
@@ -189,10 +200,10 @@ export const register: Register = on => {
             variant={tp.status === 'running' ? 'secondary' : 'primary'}
             onPress={() => togglePomo($)}
           >
-            {tp.status === 'running' ? '⏸ 일시정지' : '▶ 시작'}
+            {ic(tp.status === 'running' ? '⏸ 일시정지' : '▶ 시작')}
           </Button>
-          <Button key="pomo-skip" onPress={() => setPomo($, (p, n, mm) => skip(p, n, mm))}>⏭ 건너뛰기</Button>
-          <Button key="pomo-reset" onPress={() => resetPomo($)}>↺ 처음으로</Button>
+          <Button key="pomo-skip" onPress={() => setPomo($, (p, n, mm) => skip(p, n, mm))}>{ic('⏭ 건너뛰기')}</Button>
+          <Button key="pomo-reset" onPress={() => resetPomo($)}>{ic('↺ 처음으로')}</Button>
         </Box>
         {'Input' in r ? (
           <Box key="pomo-minutes" flexDirection="row" columnGap={2} alignItems="center" flexWrap="wrap" justifyContent="center">
@@ -233,6 +244,7 @@ export const register: Register = on => {
           <Box flexDirection="row" columnGap={1} alignItems="center">
             <Text backgroundColor={c.chipBg} color={c.chipFg} weight="bold">{` ${t.tag} `}</Text>
             <Text color={c.fg} size="footnote">{whenOf(t, today)}</Text>
+            {doneWhen(t) ? <Text color={c.fg} size="footnote">{`· ${doneWhen(t)}`}</Text> : null}
           </Box>
           <Text color={c.fg} weight="bold" strikethrough={t.done} wrap="wrap">{t.title}</Text>
           <Box {...line} flexDirection="row" justifyContent="space-between" alignItems="center">
@@ -246,7 +258,10 @@ export const register: Register = on => {
             <Button
               key={`done-${t.id}`}
               plain
-              onPress={() => save($, l => l.map(x => (x.id === t.id ? { ...x, done: !x.done } : x)))}
+              onPress={async () => {
+                const day = dayOf(await $.clock.now())
+                await save($, l => l.map(x => (x.id === t.id ? toggleDone(x, day) : x)))
+              }}
             >
               {t.done ? '●' : '○'}
             </Button>
@@ -260,10 +275,10 @@ export const register: Register = on => {
         <Text size="title" weight="bold" color={TEXT}>{greeting(new Date(nowMs).getHours())}</Text>
         <Text color={ACCENT}>{`오늘 끝낼 일 ${todayLeft}개`}</Text>
         {divider('line-0')}
-        <Text weight="bold" color={TEXT}>🍅 집중 타이머</Text>
+        <Text weight="bold" color={TEXT}>{ic('🍅 집중 타이머')}</Text>
         {timer}
         {divider('line-1')}
-        <Text weight="bold" color={TEXT}>☑ 할 일 목록</Text>
+        <Text weight="bold" color={TEXT}>{ic('☑ 할 일 목록')}</Text>
         {prog.total > 0 ? (
           <Box key="progress" flexDirection="row" alignItems="center" columnGap={1}>
             {e.surface !== 'terminal' && 'Svg' in r ? (
@@ -275,6 +290,25 @@ export const register: Register = on => {
           </Box>
         ) : null}
 
+        {'Input' in r ? (
+          <r.Input
+            key={`todo-add-${todoAdds}`}
+            rows={3} // two thirds of 🎛's 다음 요청 메모 (4 rows), rounded to a whole row
+            placeholder="OO 기능 수정"
+            submitLabel="추가"
+            value={todoDraft}
+            onInput={v => {
+              todoDraft = v // kept here, not in the state: the pane redraws every second
+            }}
+            onSubmit={async v => {
+              const res = await addTask($, v)
+              $.ui.toast(res.text)
+              if (!res.isAdded) return // the text stays, to fix
+              todoDraft = ''
+              todoAdds += 1
+            }}
+          />
+        ) : null}
         <Box {...line} flexDirection="row" alignItems="center" justifyContent="space-between">
           <Box flexDirection="row" columnGap={1} alignItems="center">
             {TABS.map((label: Tab) => (
@@ -287,14 +321,17 @@ export const register: Register = on => {
               </Button>
             ))}
           </Box>
-          <Button key="add" onPress={() => void $.prompt.fill({ text: '/todo ' })}>
-            ＋
-          </Button>
+          {'Input' in r ? null : (
+            // no field on this surface: ＋ starts a /todo in the prompt instead
+            <Button key="add" onPress={() => void $.prompt.fill({ text: '/todo ' })}>
+              ＋
+            </Button>
+          )}
         </Box>
 
         {shown.length === 0 ? (
           <Text color={SUB}>
-            {current === '완료' ? '아직 끝낸 일이 없어요.' : '할 일이 없어요. ＋를 누르거나 /todo로 추가하세요. 예: "/todo 견적서 검토 15:00"'}
+            {current === '완료' ? '아직 끝낸 일이 없어요.' : ('Input' in r ? '할 일이 없어요. 위 칸에 적거나 /todo로 추가하세요.' : '할 일이 없어요. ＋를 누르거나 /todo로 추가하세요.') + ' 예: "견적서 검토 15:00"'}
           </Text>
         ) : (
           <Box flexDirection="column" rowGap={1}>

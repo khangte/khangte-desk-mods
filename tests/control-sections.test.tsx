@@ -1,4 +1,5 @@
 import { expect, test } from 'claude-code/testing'
+import { iconless } from '../hooks/panes'
 
 import { cleanQuick } from '../hooks/band/register'
 
@@ -40,6 +41,7 @@ test('request list cleaning: trimmed, no blanks or repeats, at most 8', () => {
 })
 
 for (const surface of ['desktop', 'terminal'] as const) {
+  const ic = (t: string) => (surface === 'terminal' ? iconless(t) : t) // the terminal drops label icons
   test(`🎛 Claude 도구: 🤖 모델 · 📝 다음 요청 메모; ⚡ 원터치 요청 버튼 is edited in ⚙ 모즈 설정 (${surface})`, async ($, on) => {
     // a list set earlier carries over until it is edited
     const { kept } = wire(on, { quick: ['/ponytail-audit'] })
@@ -50,25 +52,26 @@ for (const surface of ['desktop', 'terminal'] as const) {
     const at = (s: string) => texts.findIndex(t => t.startsWith(s))
     expect(at('이번 작업')).toBe(-1) // it stays above the prompt only
     expect([at('📊 사용량'), at('⚡ 원터치 요청')]).toEqual([-1, -1]) // the band shows usage; requests are set in ⚙
-    expect(texts).toContain('🎛 Claude 도구')
-    const order = [at('🤖 모델'), at('Model'), rules[0]!, at('📝 다음 요청 메모')]
+    expect(texts).toContain(ic('🎛 Claude 도구'))
+    const order = [at(ic('🤖 모델')), at('Model'), rules[0]!, at(ic('📝 다음 요청 메모'))]
     expect(order.every(i => i >= 0)).toBe(true)
     expect([...order].sort((x, y) => x - y)).toEqual(order)
     expect(await control.find({ key: 'memo-input' })).toBeDefined()
-    expect(await control.find({ key: 'quick-add' })).toBeUndefined()
+    expect((await control.findAll({ type: 'Input' })).some((b: { key?: string }) => b.key?.startsWith('quick-add-'))).toBe(false)
     await control.unmount()
 
     const pane = () => $.ui.mount({ ...SETTINGS, surface })
+    const addKey = async (u: any) => ((await u.findAll({ type: 'Input' })) as { key?: string }[]).find(b => b.key?.startsWith('quick-add-'))!.key!
     let ui = await pane()
     const set = (await ui.findAll({ type: 'Text' })).map(t => t.text)
     expect(set).toContain('여기 적은 요청이 입력창 위 ⚡ 버튼이 돼요. 누르면 입력창에 채워지고, 보내는 건 직접 해야 돼요.')
-    expect((await ui.find({ key: 'quick-add' }))?.props.placeholder).toBe('새 요청을 적고 Enter (예: 이번 수정건 재검토해)')
+    expect((await ui.find({ key: await addKey(ui) }))?.props.placeholder).toBe('다음 진행해')
     expect(set).toContain('1. /ponytail-audit')
 
     // editing here takes the list over and keeps it in this mod's store
-    await ui.input({ key: 'quick-add', text: '  방금 고친 것 검토해 줘  ' })
+    await ui.input({ key: await addKey(ui), text: '  방금 고친 것 검토해 줘  ' })
     expect(kept.get('quick')).toEqual(['/ponytail-audit', '방금 고친 것 검토해 줘'])
-    await ui.input({ key: 'quick-add', text: '/ponytail-audit' }) // no repeats
+    await ui.input({ key: await addKey(ui), text: '/ponytail-audit' }) // no repeats
     expect(kept.get('quick')).toEqual(['/ponytail-audit', '방금 고친 것 검토해 줘'])
     await ui.unmount()
 
