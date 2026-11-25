@@ -102,6 +102,7 @@ claude plugin uninstall khangte-desk-mods@my-mods
 
 **🎛 Claude 도구**
 
+- **📊 사용량**: 컨텍스트 · 5시간 한도 · 주간 한도를 원형 게이지로 (40%부터 노랑, 60%부터 주황, 80%부터 빨강) 보여 주고, 한도 아래에 다시 차기까지 남은 시간(↻)
 - **🤖 모델**: Model(Opus / Sonnet)과 Effort(low / mid / high / xhigh / max) 버튼. 지금 쓰는 effort에 불이 들어옵니다. 누르면 바로 적용됩니다 (`/model opus`, `/effort low`와 같습니다).
 - **📝 다음 요청 메모**: Claude가 일하는 동안 다음에 시킬 일을 적어 두고, 끝나면 입력창에 채우기. 적는 대로 저장되고, 답변이 끝나면 ✨ 입력창에 채우기 버튼이 깜빡입니다.
 

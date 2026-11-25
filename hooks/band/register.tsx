@@ -12,7 +12,7 @@ import { dayOf, listFor, thinBar, todayProgress } from '../tasks/tasks'
 
 import { BANDS, DEFAULT_SETTINGS, FEATURES, normalize, shift, toggle, visible } from './layout'
 import { DEFAULT_HOURS, leaveView, parseHours } from './leave'
-import { C, EFFORTS, MODELS, planAfter, planView, usePalette } from './control'
+import { C, EFFORTS, MODELS, planAfter, planView, ringSvg, ringText, usePalette } from './control'
 import { maskText } from './shield'
 
 const usage = atom({ plugin: 'khangte-desk-mods', key: 'usage' } as const, null)
@@ -390,6 +390,13 @@ export const register: Register = on => {
     const ic = (s: string) => (isTerminal ? iconless(s) : s) // icons on desktop only
     const line = isTerminal ? {} : { minHeight: 2 }
     const gap = isTerminal ? 0 : 1
+    const u = (await read($, usage)) ?? {}
+    const now = await $.clock.now()
+    const rings = [
+      { key: 'context', label: '컨텍스트', pct: u.context, sub: '' },
+      { key: 'session', label: '5시간 한도', pct: u.session, sub: `↻${left(u.sessionReset, now)}` },
+      { key: 'week', label: '주간 한도', pct: u.week, sub: `↻${left(u.weekReset, now)}` },
+    ]
     const note = await memoText($)
     const isReady = (await read($, memoReady)) && note.trim() !== ''
     const isLit = isReady && (await read($, memoBlink)) === 1
@@ -412,6 +419,22 @@ export const register: Register = on => {
       <Box flexDirection="column" rowGap={gap} paddingX={1} paddingY={1}>
         <Text size="heading" weight="bold" color={C.deep}>{ic(CONTROL_TITLE)}</Text>
 
+        <Text weight="bold" color={C.deep}>{ic('📊 사용량')}</Text>
+        <Box flexDirection="row" justifyContent="space-around" alignItems="flex-start" flexWrap="wrap" columnGap={2}>
+          {rings.map(g => (
+            <Box key={`ring-${g.key}`} flexDirection="column" alignItems="center">
+              {!isTerminal && 'Svg' in r ? (
+                <r.Svg source={ringSvg(g.pct)} alt={`${g.label} ${g.pct === undefined ? '–' : Math.round(g.pct)}%`} width={72} height={72} />
+              ) : (
+                <Text color={C.deep} weight="bold">{ringText(g.pct)}</Text>
+              )}
+              <Text color={C.deep} size="footnote" weight="bold">{g.label}</Text>
+              <Text color={C.mid} size="caption">{g.sub || ' '}</Text>
+            </Box>
+          ))}
+        </Box>
+
+        {divider('cc-line-1')}
         <Box flexDirection="column" rowGap={gap}>
           <Text weight="bold" color={C.deep}>{ic('🤖 모델')}</Text>
           <Box {...line} flexDirection="row" alignItems="center" columnGap={1} flexWrap="wrap">

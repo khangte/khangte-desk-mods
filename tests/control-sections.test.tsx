@@ -48,12 +48,12 @@ for (const surface of ['desktop', 'terminal'] as const) {
     const control = await $.ui.mount({ ...PANE, surface })
     const texts = (await control.findAll({ type: 'Text' })).map(t => t.text)
     const rules = texts.map((t, i) => (/^─{10,}$/.test(t) ? i : -1)).filter(i => i >= 0)
-    expect(rules).toHaveLength(1)
+    expect(rules).toHaveLength(2)
     const at = (s: string) => texts.findIndex(t => t.startsWith(s))
     expect(at('이번 작업')).toBe(-1) // it stays above the prompt only
-    expect([at('📊 사용량'), at('⚡ 원터치 요청')]).toEqual([-1, -1]) // the band shows usage; requests are set in ⚙
+    expect(at('⚡ 원터치 요청')).toBe(-1) // requests are set in ⚙
     expect(texts).toContain(ic('🎛 Claude 도구'))
-    const order = [at(ic('🤖 모델')), at('Model'), rules[0]!, at(ic('📝 다음 요청 메모'))]
+    const order = [at(ic('📊 사용량')), at('컨텍스트'), rules[0]!, at(ic('🤖 모델')), at('Model'), rules[1]!, at(ic('📝 다음 요청 메모'))]
     expect(order.every(i => i >= 0)).toBe(true)
     expect([...order].sort((x, y) => x - y)).toEqual(order)
     expect(await control.find({ key: 'memo-input' })).toBeDefined()
